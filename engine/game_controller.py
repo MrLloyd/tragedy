@@ -153,17 +153,18 @@ class GameController:
 
     def _advance_and_run(self) -> None:
         """推进状态机并执行下一阶段"""
+        prev_phase = self.state_machine.current_phase  # 保存推进前的阶段
+
         phase = self.state_machine.advance(
-            is_final_day=self.state.is_final_day,
+            is_final_day=(self.state.current_day >= self.state.script.days_per_loop),
             failure_reached=bool(self.state.failure_flags),
             is_last_loop=self.state.is_last_loop,
             protagonist_dead=self.state.protagonist_dead,
             has_final_guess=True,  # TODO: 从模组配置读取
         )
 
-        # TURN_END 后如果不是最终日，推进天数
-        if (self.state_machine.current_phase == GamePhase.TURN_START
-                and self.state.current_phase == GamePhase.TURN_END):
+        # 推进日期：从 TURN_END 推进到 TURN_START 时，说明开始新的一天
+        if prev_phase == GamePhase.TURN_END and phase == GamePhase.TURN_START:
             self.state.advance_day()
 
         self._run_phase()

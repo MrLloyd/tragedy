@@ -109,6 +109,55 @@ class GameState:
                 create_protagonist_hand(PlayerRole.PROTAGONIST_2),
             ]
 
+    @classmethod
+    def create_minimal_test_state(cls, *,
+                                   loop_count: int = 2,
+                                   days_per_loop: int = 2) -> GameState:
+        """
+        创建最小游戏状态（用于测试）
+
+        参数：
+          loop_count: 最大轮回数（默认 2）
+          days_per_loop: 每轮最大天数（默认 2）
+
+        初始化：
+          - Script(loop_count, days_per_loop)
+          - 3 名主人公及其手牌
+          - 1 个最小角色（用于事件当事人）
+          - 当前轮 = 1, 当前天 = 1
+        """
+        script = Script(
+            module_id="first_steps",
+            loop_count=loop_count,
+            days_per_loop=days_per_loop,
+            incident_public=[],
+            special_rules_text=[],
+        )
+
+        state = cls(
+            script=script,
+            current_loop=1,
+            current_day=1,
+            leader_index=0,
+        )
+
+        # 初始化主人公手牌
+        state.init_protagonist_hands()
+
+        # 添加最小角色（防止空角色表）
+        state.characters = {
+            "test_character": CharacterState(
+                character_id="test_character",
+                name="测试角色",
+                area=AreaId.SCHOOL,
+                initial_area=AreaId.SCHOOL,
+                identity_id="test_identity",
+                original_identity_id="test_identity",
+            )
+        }
+
+        return state
+
     # ==================================================================
     # 查询
     # ==================================================================
