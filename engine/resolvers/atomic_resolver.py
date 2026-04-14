@@ -17,7 +17,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
 
-from engine.models.enums import DeathResult, EffectType, Outcome, TokenType, Trait
+from engine.models.enums import AbilityTiming, AreaId, DeathResult, EffectType, Outcome, TokenType, Trait
 from engine.event_bus import EventBus, GameEvent, GameEventType
 
 if TYPE_CHECKING:
@@ -73,7 +73,8 @@ class AtomicResolver:
         self.death_resolver = death_resolver
 
     def resolve(self, state: GameState, effects: list[Effect],
-                sequential: bool = False) -> ResolutionResult:
+                sequential: bool = False,
+                perpetrator_id: str = "") -> ResolutionResult:
         """
         执行一次原子结算。
 
@@ -81,22 +82,24 @@ class AtomicResolver:
             state: 真实游戏状态（会被修改）
             effects: 待执行的效果列表
             sequential: True=有"随后"，逐个结算；False=同时生效
+            perpetrator_id: 事件当事人 ID，用于解析 same_area_* 等符号目标
         """
         if sequential:
-            return self._resolve_sequential(state, effects)
-        return self._resolve_simultaneous(state, effects)
+            return self._resolve_sequential(state, effects, perpetrator_id)
+        return self._resolve_simultaneous(state, effects, perpetrator_id)
 
     # ==================================================================
     # 同时生效结算
     # ==================================================================
 
     def _resolve_simultaneous(self, state: GameState,
-                              effects: list[Effect]) -> ResolutionResult:
+                              effects: list[Effect],
+                              perpetrator_id: str = "") -> ResolutionResult:
         # ① 读：在快照上规划
         snapshot = state.snapshot()
         planned_mutations = []
         for effect in effects:
-            mutations = self._plan_effect(snapshot, effect)
+            mutations = self._plan_effect(snapshot, effect, perpetrator_id)
             planned_mutations.extend(mutations)
 
         # ② 写：批量应用到真实状态
@@ -111,13 +114,14 @@ class AtomicResolver:
     # ==================================================================
 
     def _resolve_sequential(self, state: GameState,
-                            effects: list[Effect]) -> ResolutionResult:
+                            effects: list[Effect],
+                            perpetrator_id: str = "") -> ResolutionResult:
         all_mutations: list[Mutation] = []
         final_outcome = Outcome.NONE
 
         for effect in effects:
             # 每步独立走完三步法
-            sub_result = self._resolve_simultaneous(state, [effect])
+            sub_result = self._resolve_simultaneous(state, [effect], perpetrator_id)
             all_mutations.extend(sub_result.mutations)
 
             # 如果产生终局效果，记录但继续（后续步骤基于新状态）
@@ -133,61 +137,95 @@ class AtomicResolver:
     # 第一步：读 — 在快照上规划变更
     # ==================================================================
 
-    def _plan_effect(self, snapshot: GameState, effect: Effect
-                     ) -> list[Mutation]:
+    def _resolve_target_ids(self, snapshot: GameState, target: str,
+                            perpetrator_id: str) -> list[str]:
+        """
+        将符号目标解析为具体的角色 ID 或区域 ID 列表。
+
+        支持的符号目标：
+          same_area_all   — 当事人所在区域的全部存活角色（含当事人）
+          same_area_other — 同区域除当事人外的存活角色
+          same_area_board — 当事人所在区域的版图 area_id（返回区域 ID 字符串）
+          其他            — 原样返回（具体角色 ID / 区域 ID）
+        """
+        if target == "self":
+            return [perpetrator_id] if perpetrator_id and perpetrator_id in snapshot.characters else []
+
+        if target in ("same_area_all", "same_area_other", "same_area_board"):
+            if not perpetrator_id or perpetrator_id not in snapshot.characters:
+                return []
+            perp_area = snapshot.characters[perpetrator_id].area
+            if target == "same_area_board":
+                return [perp_area.value]
+            alive_in_area = [
+                cid for cid, ch in snapshot.characters.items()
+                if ch.area == perp_area and ch.is_alive
+            ]
+            if target == "same_area_other":
+                alive_in_area = [cid for cid in alive_in_area if cid != perpetrator_id]
+            return alive_in_area
+        return [target]
+
+    def _plan_effect(self, snapshot: GameState, effect: Effect,
+                     perpetrator_id: str = "") -> list[Mutation]:
         """根据效果类型规划 mutations（不修改状态）"""
         mutations = []
 
         match effect.effect_type:
 
             case EffectType.PLACE_TOKEN:
-                mutations.append(Mutation(
-                    mutation_type="token_change",
-                    target_id=effect.target,
-                    details={
-                        "token_type": effect.token_type.value if effect.token_type else "",
-                        "delta": effect.amount,
-                    },
-                ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="token_change",
+                        target_id=tid,
+                        details={
+                            "token_type": effect.token_type.value if effect.token_type else "",
+                            "delta": effect.amount,
+                        },
+                    ))
 
             case EffectType.REMOVE_TOKEN:
-                mutations.append(Mutation(
-                    mutation_type="token_change",
-                    target_id=effect.target,
-                    details={
-                        "token_type": effect.token_type.value if effect.token_type else "",
-                        "delta": -effect.amount,
-                    },
-                ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="token_change",
+                        target_id=tid,
+                        details={
+                            "token_type": effect.token_type.value if effect.token_type else "",
+                            "delta": -effect.amount,
+                        },
+                    ))
 
             case EffectType.REMOVE_ALL_TOKENS:
-                if effect.target in snapshot.characters:
-                    ch = snapshot.characters[effect.target]
-                    if effect.token_type:
-                        current = ch.tokens.get(effect.token_type)
-                        if current > 0:
-                            mutations.append(Mutation(
-                                mutation_type="token_change",
-                                target_id=effect.target,
-                                details={
-                                    "token_type": effect.token_type.value,
-                                    "delta": -current,
-                                },
-                            ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    if tid in snapshot.characters:
+                        ch = snapshot.characters[tid]
+                        if effect.token_type:
+                            current = ch.tokens.get(effect.token_type)
+                            if current > 0:
+                                mutations.append(Mutation(
+                                    mutation_type="token_change",
+                                    target_id=tid,
+                                    details={
+                                        "token_type": effect.token_type.value,
+                                        "delta": -current,
+                                    },
+                                ))
 
             case EffectType.KILL_CHARACTER:
-                mutations.append(Mutation(
-                    mutation_type="character_death",
-                    target_id=effect.target,
-                    details={"cause": "effect"},
-                ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="character_death",
+                        target_id=tid,
+                        details={"cause": "effect"},
+                    ))
 
             case EffectType.MOVE_CHARACTER:
-                mutations.append(Mutation(
-                    mutation_type="character_move",
-                    target_id=effect.target,
-                    details={"destination": effect.value},
-                ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="character_move",
+                        target_id=tid,
+                        details={"destination": effect.value},
+                    ))
 
             case EffectType.PROTAGONIST_DEATH:
                 mutations.append(Mutation(
@@ -211,11 +249,12 @@ class AtomicResolver:
                 ))
 
             case EffectType.REVEAL_IDENTITY:
-                mutations.append(Mutation(
-                    mutation_type="reveal_identity",
-                    target_id=effect.target,
-                    details={},
-                ))
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="reveal_identity",
+                        target_id=tid,
+                        details={},
+                    ))
 
             case EffectType.MODIFY_EX_GAUGE:
                 mutations.append(Mutation(
@@ -333,9 +372,9 @@ class AtomicResolver:
             if trigger.is_terminal:
                 terminal_effects.append(trigger)
             else:
-                # 非终局触发：执行效果，可能产生新触发
+                # 非终局触发：执行效果，可能产生新触发（以 source_id 作为 perpetrator）
                 for effect in trigger.effects:
-                    sub_mutations = self._plan_effect(state, effect)
+                    sub_mutations = self._plan_effect(state, effect, trigger.source_id)
                     for sm in sub_mutations:
                         self._apply_mutation(state, sm)
                         new_triggers = self._collect_triggers_from_mutation(sm, state)
@@ -343,6 +382,12 @@ class AtomicResolver:
 
         # 统一裁定终局
         outcome = self._adjudicate(terminal_effects, state)
+
+        # 裁定后发布终局事件
+        if outcome == Outcome.PROTAGONIST_DEATH:
+            self.event_bus.emit(GameEvent(GameEventType.PROTAGONIST_DEATH, {"cause": "adjudication"}))
+        elif outcome == Outcome.PROTAGONIST_FAILURE:
+            self.event_bus.emit(GameEvent(GameEventType.PROTAGONIST_FAILURE, {"cause": "adjudication"}))
 
         # 如果有强制结束轮回的 mutation，标记到结果
         has_force_end = any(m.mutation_type == "force_loop_end" for m in mutations)
@@ -364,9 +409,19 @@ class AtomicResolver:
                     GameEventType.CHARACTER_DEATH,
                     {"character_id": cid},
                 ))
-                # 此处应由身份系统注册具体的死亡触发
-                # 例如关键人物死亡 → protagonist_failure + force_loop_end
-                # 通过 event_bus 订阅者返回触发
+                # 接入身份 ON_DEATH 能力触发入口
+                ch = state.characters.get(cid)
+                if ch and ch.identity_id:
+                    identity_def = state.identity_defs.get(ch.identity_id)
+                    if identity_def:
+                        for ability in identity_def.abilities:
+                            if ability.timing == AbilityTiming.ON_DEATH:
+                                triggers.append(Trigger(
+                                    trigger_type="on_death",
+                                    source_id=cid,
+                                    is_terminal=False,
+                                    effects=ability.effects,
+                                ))
 
         if mutation.mutation_type == "protagonist_death":
             if state.protagonist_dead:

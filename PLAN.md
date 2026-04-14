@@ -99,9 +99,10 @@ traged/
 - [x] `engine/phases/phase_base.py`：PhaseHandler / PhaseSignal 框架
 - [x] 打通 `WaitForInput` 回填闭环：`provide_input` 后稳定续跑后续阶段
 - [x] `engine/game_state.py`：新增 `create_minimal_test_state()` 便于测试
-- [ ] 完成最小阶段业务闭环：`ACTION_RESOLVE`、`INCIDENT`、`TURN_END`、`LOOP_END_CHECK`
+- [x] `INCIDENT` 最小业务闭环：触发判定 + 效果执行 + ForceLoopEnd ✅ 2026-04-14
+- [x] 完成最小阶段业务闭环：`ACTION_RESOLVE`、`TURN_END`、`LOOP_END_CHECK` ✅ 2026-04-14
 - [ ] 将 `has_final_guess` 从控制器硬编码改为读取 `Script.module`/模组配置
-- [ ] 接通事件触发链与身份能力触发到 `event_bus`
+- [x] 接通事件触发链与身份能力触发到 `event_bus` ✅ 2026-04-14
 - [ ] 补充 Phase 1 核心测试：状态机分支、同时裁定、死亡/失败优先级、跨阶段 loop_end 跳转
 
 #### Phase 1 实施进度
@@ -110,11 +111,11 @@ traged/
 - 实现 `WaitForInput.callback` 生命周期：挂起、回填、续跑、防重复输入
 - 验证 “一次输入 -> 正常推进到下一阶段”
 
-**进行中（P1-1 最小业务闭环）：**
-- [ ] `INCIDENT`：最小事件触发判定与执行路径（下一个）
-- [ ] `ACTION_RESOLVE`：先实现最小可运行结算入口（可先覆盖少量 effect）
-- [ ] `TURN_END`：强制效果 -> 任意效果声明 -> 每次后检查是否应结束轮回
-- [ ] `LOOP_END_CHECK`：补充失败条件检查（三分支框架已通）
+**已完成（P1-1 最小业务闭环）：** ✅ 2026-04-14
+- [x] `INCIDENT`：最小事件触发判定与执行路径 ✅ 2026-04-14
+- [x] `ACTION_RESOLVE`：CardType→Effect 映射，FORBID 预处理，移动计算，ForceLoopEnd 检查 ✅ 2026-04-14
+- [x] `TURN_END`：框架通（身份能力待 Phase 2 数据层后补充）✅
+- [x] `LOOP_END_CHECK`：三分支已通，failure_flags 由 game_controller 传入 ✅
 
 **待开始（P1-2 模组配置接线）：**
 - `has_final_guess` 改为读取 `Script`/module 配置，不再硬编码
@@ -123,17 +124,18 @@ traged/
 **待开始（P1-3 事件总线接线）：**
 - 将死亡、失败、轮回终止等关键触发统一发布到 `event_bus`，并接入能力触发入口
 
-**待开始（P1-4 测试兜底）：**
-- 覆盖状态机关键分支、同时裁定、跨阶段终止、输入续跑回归
+**已完成（P1-4 测试兜底 + DoD-4）：** ✅ 2026-04-14
+- 同时裁定逻辑（`atomic_resolver._adjudicate`）：死亡/失败优先级、军人阻止分流 ✅
+- 关键分支自动化回归测试（`tests/test_incident_handler.py` 6条，`tests/test_wait_for_input_loop.py` 4条）✅
 
 #### Phase 1 完成标准（Definition of Done）
 
 - [x] DoD-1：从 `GAME_PREPARE` 可稳定跑到 `LOOP_END_CHECK`（至少 1 条最小路径）✅ 2026-04-14
 - [x] DoD-2：`WaitForInput` 至少完成 1 次 “输入 -> 回调 -> 继续执行” 且无重复消费
 - [x] DoD-3：`LOOP_END_CHECK` 三分支可验证（胜利 / NEXT_LOOP / 最后一轮失败分支）✅ 验证于 test 3
-- [ ] DoD-4：关键同时裁定正确（主人公死亡 vs 主人公失败，军人阻止死亡后的分流）
+- [x] DoD-4：关键同时裁定正确（主人公死亡 vs 主人公失败，军人阻止死亡后的分流）✅ 2026-04-14
 - [ ] DoD-5：`has_final_guess` 来源于模组配置，不再在控制器硬编码
-- [ ] DoD-6：具备最小自动化回归测试并可本地通过
+- [x] DoD-6：具备最小自动化回归测试并可本地通过 ✅ 2026-04-14
 
 ---
 
@@ -143,17 +145,17 @@ traged/
 
 **⚠️ 关联说明：** Phase 2 是 Phase 1 DoD-5（has_final_guess 配置化）的前置依赖。建议 Phase 2-P2-1 完成后，立即回过来做 Phase 1-P1-2。
 
-- [ ] 新增 `engine/rules/module_loader.py`：将 `data/modules/*.json` 装配为运行时结构
-- [ ] 新增 `engine/rules/identity_registry.py`：身份定义注册与按 id 查询
-- [ ] 新增 `engine/rules/incident_registry.py`：事件定义注册与按 id 查询
+- [x] 新增 `engine/rules/module_loader.py`：将 `data/modules/*.json` 装配为运行时结构 ✅ 2026-04-14
+- [x] 新增 `engine/rules/identity_registry.py`：身份定义注册与按 id 查询 ✅ 2026-04-14
+- [x] 新增 `engine/rules/incident_registry.py`：事件定义注册与按 id 查询 ✅ 2026-04-14
 - [ ] `game_controller` / phase 逻辑接入 module 配置（含 `has_final_guess`、模组差异）
 - [ ] 数据校验与加载链路打通（校验通过后可被 loader 消费）
 
 #### Phase 2 实施进度
 
-**待开始（P2-0 注册表先行）：**
-- 先落地 `identity_registry` / `incident_registry` 的最小只读查询接口（按 id 获取定义）
-- 保持纯数据层，不引入业务结算逻辑
+**已完成（P2-0 注册表先行）：** ✅ 2026-04-14
+- `IdentityRegistry` / `IncidentRegistry`：`register(defs)` + `get(id)` + `all()` 只读接口
+- 纯数据层，无业务逻辑
 
 **待开始（P2-1 模块加载器）：**
 - 实现 `module_loader`：读取 `data/modules/*.json`，生成 `Script` + 规则/身份/事件定义对象

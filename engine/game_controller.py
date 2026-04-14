@@ -111,6 +111,9 @@ class GameController:
         # 通知 UI
         self._notify_phase_change()
 
+        # 阶段变更事件
+        self.event_bus.emit(GameEvent(GameEventType.PHASE_CHANGED, {"phase": phase.value}))
+
         # 游戏结束检查
         if phase == GamePhase.GAME_END:
             self._handle_game_end()
@@ -118,7 +121,9 @@ class GameController:
 
         # NEXT_LOOP：重置状态后自动推进
         if phase == GamePhase.NEXT_LOOP:
+            self.event_bus.emit(GameEvent(GameEventType.LOOP_ENDED, {"loop": self.state.current_loop}))
             self.state.reset_for_new_loop()
+            self.event_bus.emit(GameEvent(GameEventType.LOOP_STARTED, {"loop": self.state.current_loop}))
             self._advance_and_run()
             return
 
@@ -148,6 +153,10 @@ class GameController:
                 self.ui_callback.on_wait_for_input(wait)
 
             case ForceLoopEnd() as fle:
+                self.event_bus.emit(GameEvent(
+                    GameEventType.LOOP_END_FORCED,
+                    {"reason": fle.reason},
+                ))
                 self.state_machine.force_loop_end()
                 self._advance_and_run()
 
@@ -182,6 +191,7 @@ class GameController:
         else:
             outcome = Outcome.PROTAGONIST_WIN
 
+        self.event_bus.emit(GameEvent(GameEventType.GAME_ENDED, {"outcome": outcome.value}))
         self.ui_callback.on_game_over(outcome)
 
     # ==================================================================

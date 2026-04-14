@@ -10,3 +10,6 @@ build/
 
 # Local scratch / editor artifacts
 engine/models/Untitled
+
+# Claude Code 本地配置（不入库）
+.claude/

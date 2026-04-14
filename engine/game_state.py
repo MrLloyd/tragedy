@@ -20,7 +20,8 @@ from engine.models.cards import (
     create_mastermind_hand, create_protagonist_hand,
 )
 from engine.models.character import CharacterEndState, CharacterState, TokenSet
-from engine.models.incident import IncidentSchedule
+from engine.models.identity import IdentityDef
+from engine.models.incident import IncidentDef, IncidentSchedule
 from engine.models.script import Script
 
 
@@ -92,6 +93,10 @@ class GameState:
 
     # ---- 事件追踪 ----
     incidents_occurred_this_loop: list[str] = field(default_factory=list)
+    # Phase 2 module_loader 填充；为空时 IncidentHandler 仅做触发标记，跳过效果执行
+    incident_defs: dict[str, IncidentDef] = field(default_factory=dict)
+    # Phase 2 module_loader 填充；为空时 ON_DEATH 能力触发跳过（安全降级）
+    identity_defs: dict[str, IdentityDef] = field(default_factory=dict)
 
     # ---- 跨轮回历史 ----
     loop_history: list[LoopSnapshot] = field(default_factory=list)
