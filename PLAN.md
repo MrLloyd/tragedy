@@ -93,61 +93,75 @@ traged/
 ### Phase 1（进行中）: 状态机 + 核心引擎
 - [x] `engine/state_machine.py`：实现 15 阶段主流程、条件分支与虚线跳转
 - [x] `engine/game_controller.py`：实现调度主循环（phase execute → signal handle → advance）
+  - ✅ 修复日期推进逻辑（TURN_END → TURN_START 时推进 current_day）
 - [x] `engine/resolvers/atomic_resolver.py`：原子结算框架（读-写-触发）骨架
 - [x] `engine/resolvers/death_resolver.py`：死亡处理链基础（护卫/不死/死亡）
 - [x] `engine/phases/phase_base.py`：PhaseHandler / PhaseSignal 框架
 - [x] 打通 `WaitForInput` 回填闭环：`provide_input` 后稳定续跑后续阶段
+- [x] `engine/game_state.py`：新增 `create_minimal_test_state()` 便于测试
 - [ ] 完成最小阶段业务闭环：`ACTION_RESOLVE`、`INCIDENT`、`TURN_END`、`LOOP_END_CHECK`
 - [ ] 将 `has_final_guess` 从控制器硬编码改为读取 `Script.module`/模组配置
 - [ ] 接通事件触发链与身份能力触发到 `event_bus`
 - [ ] 补充 Phase 1 核心测试：状态机分支、同时裁定、死亡/失败优先级、跨阶段 loop_end 跳转
 
-#### Phase 1 实施顺序（建议）
+#### Phase 1 实施进度
 
-1. **输入闭环先行（P1-0）**
-   - 实现 `WaitForInput.callback` 生命周期：挂起、回填、续跑、防重复输入。
-   - 先保证 “一次输入 -> 正常推进到下一阶段”。
-2. **最小业务闭环（P1-1）**
-   - `ACTION_RESOLVE`：先实现最小可运行结算入口（可先覆盖少量 effect）。
-   - `INCIDENT`：最小事件触发判定与执行路径。
-   - `TURN_END`：强制效果 -> 任意效果声明 -> 每次后检查是否应结束轮回。
-   - `LOOP_END_CHECK`：三分支闭环（胜利 / NEXT_LOOP / FINAL_GUESS|GAME_END）。
-3. **模组配置接线（P1-2）**
-   - `has_final_guess` 改为读取 `Script`/module 配置，不再硬编码。
-4. **事件总线接线（P1-3）**
-   - 将死亡、失败、轮回终止等关键触发统一发布到 `event_bus`，并接入能力触发入口。
-5. **测试兜底（P1-4）**
-   - 覆盖状态机关键分支、同时裁定、跨阶段终止、输入续跑回归。
+**已完成（P1-0 输入闭环）：** ✅
+- 实现 `WaitForInput.callback` 生命周期：挂起、回填、续跑、防重复输入
+- 验证 “一次输入 -> 正常推进到下一阶段”
+
+**进行中（P1-1 最小业务闭环）：**
+- [ ] `INCIDENT`：最小事件触发判定与执行路径（下一个）
+- [ ] `ACTION_RESOLVE`：先实现最小可运行结算入口（可先覆盖少量 effect）
+- [ ] `TURN_END`：强制效果 -> 任意效果声明 -> 每次后检查是否应结束轮回
+- [ ] `LOOP_END_CHECK`：补充失败条件检查（三分支框架已通）
+
+**待开始（P1-2 模组配置接线）：**
+- `has_final_guess` 改为读取 `Script`/module 配置，不再硬编码
+- 需先完成 Phase 2 loader
+
+**待开始（P1-3 事件总线接线）：**
+- 将死亡、失败、轮回终止等关键触发统一发布到 `event_bus`，并接入能力触发入口
+
+**待开始（P1-4 测试兜底）：**
+- 覆盖状态机关键分支、同时裁定、跨阶段终止、输入续跑回归
 
 #### Phase 1 完成标准（Definition of Done）
 
-- [ ] DoD-1：从 `GAME_PREPARE` 可稳定跑到 `LOOP_END_CHECK`（至少 1 条最小路径）
+- [x] DoD-1：从 `GAME_PREPARE` 可稳定跑到 `LOOP_END_CHECK`（至少 1 条最小路径）✅ 2026-04-14
 - [x] DoD-2：`WaitForInput` 至少完成 1 次 “输入 -> 回调 -> 继续执行” 且无重复消费
-- [ ] DoD-3：`LOOP_END_CHECK` 三分支可验证（胜利 / NEXT_LOOP / 最后一轮失败分支）
+- [x] DoD-3：`LOOP_END_CHECK` 三分支可验证（胜利 / NEXT_LOOP / 最后一轮失败分支）✅ 验证于 test 3
 - [ ] DoD-4：关键同时裁定正确（主人公死亡 vs 主人公失败，军人阻止死亡后的分流）
 - [ ] DoD-5：`has_final_guess` 来源于模组配置，不再在控制器硬编码
 - [ ] DoD-6：具备最小自动化回归测试并可本地通过
-### Phase 2（优先）: 数据层完善（loader / registry / 契约联动）
+
+---
+
+**📋 文档更新规则：**
+每次代码更新时，同步更新本文档中对应的进度标记与日期戳。这确保计划与实际代码状态保持一致。
+### Phase 2（优先，与 Phase 1-2/1-3 并行）: 数据层完善（loader / registry / 契约联动）
+
+**⚠️ 关联说明：** Phase 2 是 Phase 1 DoD-5（has_final_guess 配置化）的前置依赖。建议 Phase 2-P2-1 完成后，立即回过来做 Phase 1-P1-2。
+
 - [ ] 新增 `engine/rules/module_loader.py`：将 `data/modules/*.json` 装配为运行时结构
 - [ ] 新增 `engine/rules/identity_registry.py`：身份定义注册与按 id 查询
 - [ ] 新增 `engine/rules/incident_registry.py`：事件定义注册与按 id 查询
 - [ ] `game_controller` / phase 逻辑接入 module 配置（含 `has_final_guess`、模组差异）
 - [ ] 数据校验与加载链路打通（校验通过后可被 loader 消费）
 
-#### Phase 2 实施顺序（建议）
+#### Phase 2 实施进度
 
-1. **注册表先行（P2-0）**
-   - 先落地 `identity_registry` / `incident_registry` 的最小只读查询接口（按 id 获取定义）。
-   - 保持纯数据层，不引入业务结算逻辑。
-2. **模块加载器（P2-1）**
-   - 实现 `module_loader`：读取 `data/modules/*.json`，生成 `Script` + 规则/身份/事件定义对象。
-   - 先支持 `first_steps` 与 `basic_tragedy_x` 两个模组。
-3. **控制器接线（P2-2）**
-   - 用加载结果驱动 `GameState.script` 与关键配置（如 `has_final_guess`），移除硬编码依赖。
-4. **校验联动（P2-3）**
-   - 保证“校验通过的数据”可被 loader 无异常消费；loader 错误信息复用数据路径语义（便于定位）。
-5. **回归测试（P2-4）**
-   - 为 loader/registry 增加最小单元测试 + 一条集成冒烟（加载模组 -> 构造初始状态）。
+**待开始（P2-0 注册表先行）：**
+- 先落地 `identity_registry` / `incident_registry` 的最小只读查询接口（按 id 获取定义）
+- 保持纯数据层，不引入业务结算逻辑
+
+**待开始（P2-1 模块加载器）：**
+- 实现 `module_loader`：读取 `data/modules/*.json`，生成 `Script` + 规则/身份/事件定义对象
+- 先支持 `first_steps` 与 `basic_tragedy_x` 两个模组
+- 完成后转接回 Phase 1-P1-2（has_final_guess 配置化）
+
+**待开始（P2-2/P2-3/P2-4 后续步骤）：**
+- 控制器接线、校验联动、回归测试
 
 #### Phase 2 完成标准（Definition of Done）
 
@@ -321,6 +335,39 @@ traged/
 - **拒绝时必须告知**：技能发动失败（rules.md:221 更新）
 - **亲友死亡**：轮回结束时若死亡 → 此时告知身份
 - **裁定日志**：服务端保留完整日志，客户端按边界过滤
+
+---
+
+## 3.5 整合优先级与依赖关系图
+
+```
+Phase 1-P1-1 (最小业务闭环)
+├─ INCIDENT ................................. 下一个 ⭐
+├─ ACTION_RESOLVE
+├─ TURN_END
+└─ LOOP_END_CHECK (框架已通)
+
+Phase 2 (数据层) ........................... 并行或 P1-1 后
+├─ P2-0: identity_registry / incident_registry
+├─ P2-1: module_loader (first_steps + basic_tragedy_x)
+└─ P2-2/P2-3: 控制器接线
+
+Phase 1-P1-2 (模组配置接线) .............. P2-1 完成后
+└─ has_final_guess 配置化 (解决 DoD-5)
+
+Phase 1-P1-3 (事件总线接线)
+├─ 发布死亡/失败/轮回终止事件
+└─ 接入能力触发链
+
+Phase 1-P1-4 (测试兜底 + DoD-4)
+├─ 同时裁定逻辑（军人阻止死亡分流）
+└─ 关键分支回归测试
+```
+
+**建议开始顺序：**
+1. **Phase 1-P1-1 INCIDENT** (独立，易验证) → **Action Resolve** → **TURN_END** → **LOOP_END_CHECK**
+2. **Phase 2 (并行或串行)** → P2-1 完成后马上做 Phase 1-P1-2
+3. **Phase 1-P1-3/P1-4** (后续)
 
 ---
 
