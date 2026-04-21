@@ -1,0 +1,24 @@
+---
+description: 阅读/探索 engine 下 Python 时采用三层记忆（映射→检索→精读），对齐 project skill
+globs: engine/**/*.py
+alwaysApply: false
+---
+
+# Tragedy：代码阅读 workflow
+
+在本仓库中**阅读、定位、追踪**实现或调用关系时，应用 project skill **`tragedy-three-layer-navigation`**（路径：`.cursor/skills/tragedy-three-layer-navigation/SKILL.md`）。若尚未载入该 skill，先按其中步骤执行。
+
+## 顺序（同一任务内）
+
+1. **映射**：查 [`PLAN.md`](../../PLAN.md)、[`PLAN_CODE_MAPPING.md`](../../PLAN_CODE_MAPPING.md)，确定「某类规则/模块落在哪一文件」。
+2. **检索**：用 `rg` / `grep` 定位类名、函数名、字符串常量、枚举值；拿到路径与行号再决定读哪里。
+3. **精读**：只对必要**行段**阅读；用语义搜索或跳转缩小范围后再 `read_file`。
+
+## 禁止
+
+- 映射与检索已能回答「在哪、叫什么」时，仍**反复整文件**通读同一源文件。
+- 未查 `PLAN_CODE_MAPPING.md` 就在 `engine/` 下大面积盲读。
+
+## 原则
+
+能由第 1、2 步解决的，不要默认升级到「整文件精读」。

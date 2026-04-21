@@ -44,13 +44,37 @@ def _validate_condition(
     if params is not None and not isinstance(params, dict):
         issues.append(ValidationIssue(f"{path}.params", "must be an object"))
         return
+    if ct in {"all_of", "any_of"} and isinstance(params, dict):
+        nested = params.get("conditions")
+        if not isinstance(nested, list):
+            issues.append(ValidationIssue(f"{path}.params.conditions", "must be an array"))
+        else:
+            for idx, item in enumerate(nested):
+                _validate_condition(item, f"{path}.params.conditions[{idx}]", issues)
     if ct == "token_check" and isinstance(params, dict):
         tgt = params.get("target")
-        if isinstance(tgt, str) and tgt not in _AREA:
+        if isinstance(tgt, str) and tgt not in _AREA and tgt not in {"self", "other"}:
             issues.append(
                 ValidationIssue(
                     f"{path}.params.target",
                     f"invalid area or token target: {tgt!r}",
+                )
+            )
+        tok = params.get("token")
+        if isinstance(tok, str) and tok not in _TOKEN_TYPE:
+            issues.append(
+                ValidationIssue(
+                    f"{path}.params.token",
+                    f"invalid TokenType: {tok!r}",
+                )
+            )
+    if ct in {"identity_token_check", "same_area_identity_token_check"} and isinstance(params, dict):
+        identity_id = params.get("identity_id")
+        if not isinstance(identity_id, str) or not identity_id.strip():
+            issues.append(
+                ValidationIssue(
+                    f"{path}.params.identity_id",
+                    "must be non-empty string",
                 )
             )
         tok = params.get("token")
@@ -83,7 +107,7 @@ def _validate_effects(
             )
         if et == EffectType.PLACE_TOKEN.value:  # "place_token"
             tt = eff.get("token_type")
-            if tt not in _TOKEN_TYPE:
+            if tt not in _TOKEN_TYPE and eff.get("value") != "choose_token_type":
                 issues.append(
                     ValidationIssue(
                         f"{ep}.token_type",

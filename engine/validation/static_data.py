@@ -211,10 +211,68 @@ def validate_characters(
                     )
 
         pl = ch.get("paranoia_limit")
-        if not isinstance(pl, int) or pl < 1:
+        # 附录 C 允许 0（如黑猫）；引擎按规则在判定时覆盖
+        if not isinstance(pl, int) or pl < 0:
             issues.append(
-                ValidationIssue(f"{p}.paranoia_limit", f"expected int >= 1, got {pl!r}")
+                ValidationIssue(f"{p}.paranoia_limit", f"expected int >= 0, got {pl!r}")
             )
+
+        gtexts = ch.get("goodwill_ability_texts")
+        if gtexts is not None:
+            if not isinstance(gtexts, list) or len(gtexts) != 4:
+                issues.append(
+                    ValidationIssue(
+                        f"{p}.goodwill_ability_texts",
+                        "must be an array of length 4 (slots 1–4, empty string if unused)",
+                    )
+                )
+            else:
+                for j, t in enumerate(gtexts):
+                    if not isinstance(t, str):
+                        issues.append(
+                            ValidationIssue(
+                                f"{p}.goodwill_ability_texts[{j}]",
+                                f"expected string, got {t!r}",
+                            )
+                        )
+
+        gcosts = ch.get("goodwill_ability_goodwill_costs")
+        if gcosts is not None:
+            if not isinstance(gcosts, list) or len(gcosts) != 4:
+                issues.append(
+                    ValidationIssue(
+                        f"{p}.goodwill_ability_goodwill_costs",
+                        "must be an array of length 4 (友好能力1–4 所需友好度)",
+                    )
+                )
+            else:
+                for j, c in enumerate(gcosts):
+                    if not isinstance(c, int) or c < 0:
+                        issues.append(
+                            ValidationIssue(
+                                f"{p}.goodwill_ability_goodwill_costs[{j}]",
+                                f"expected int >= 0, got {c!r}",
+                            )
+                        )
+
+        gopl = ch.get("goodwill_ability_once_per_loop")
+        if gopl is not None:
+            if not isinstance(gopl, list) or len(gopl) != 2:
+                issues.append(
+                    ValidationIssue(
+                        f"{p}.goodwill_ability_once_per_loop",
+                        "must be an array of length 2 (能力1/2 是否每轮回限一次)",
+                    )
+                )
+            else:
+                for j, b in enumerate(gopl):
+                    if not isinstance(b, bool):
+                        issues.append(
+                            ValidationIssue(
+                                f"{p}.goodwill_ability_once_per_loop[{j}]",
+                                f"expected bool, got {b!r}",
+                            )
+                        )
 
     return issues
 

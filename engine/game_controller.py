@@ -77,9 +77,21 @@ class GameController:
     # 游戏生命周期
     # ==================================================================
 
-    def start_game(self, state: GameState) -> None:
-        """开始新游戏"""
-        self.state = state
+    def start_game(
+        self,
+        module_id: str,
+        *,
+        loop_count: int | None = None,
+        days_per_loop: int | None = None,
+    ) -> None:
+        """从 `data/modules/{module_id}.json` 加载并开局。"""
+        from engine.rules.module_loader import build_game_state_from_module
+
+        self.state = build_game_state_from_module(
+            module_id,
+            loop_count=loop_count,
+            days_per_loop=days_per_loop,
+        )
         self.state_machine.reset()
         self.state.current_phase = GamePhase.GAME_PREPARE
         self._run_phase()
@@ -121,7 +133,6 @@ class GameController:
 
         # NEXT_LOOP：重置状态后自动推进
         if phase == GamePhase.NEXT_LOOP:
-            self.event_bus.emit(GameEvent(GameEventType.LOOP_ENDED, {"loop": self.state.current_loop}))
             self.state.reset_for_new_loop()
             self.event_bus.emit(GameEvent(GameEventType.LOOP_STARTED, {"loop": self.state.current_loop}))
             self._advance_and_run()
@@ -169,7 +180,7 @@ class GameController:
             failure_reached=bool(self.state.failure_flags),
             is_last_loop=self.state.is_last_loop,
             protagonist_dead=self.state.protagonist_dead,
-            has_final_guess=True,  # TODO: 从模组配置读取
+            has_final_guess=self.state.has_final_guess,
         )
 
         # 推进日期：从 TURN_END 推进到 TURN_START 时，说明开始新的一天

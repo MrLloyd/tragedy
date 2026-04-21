@@ -104,8 +104,12 @@ class CharacterState:
     entry_day: Optional[int] = None         # 第几天登场（转校生）
 
     # --- 运行时状态（不序列化到 JSON） ---
+    goodwill_ability_texts: list[str] = field(default_factory=list)
+    goodwill_ability_goodwill_costs: list[int] = field(default_factory=list)
+    goodwill_ability_once_per_loop: list[bool] = field(default_factory=list)
     goodwill_abilities_used: dict[str, int] = field(default_factory=dict)
     # ability_id -> 本轮回已使用次数
+    identity_change_reason: Optional[str] = None
 
     def reset_for_new_loop(self) -> None:
         """轮回重置：复活、清指示物、回初始位置"""
@@ -116,6 +120,8 @@ class CharacterState:
         self.goodwill_abilities_used.clear()
         self.ex_cards.clear()
         self.curse_state = None
+        self.identity_id = self.original_identity_id
+        self.identity_change_reason = None
 
     def snapshot(self) -> CharacterState:
         """深拷贝，用于原子结算的读阶段"""

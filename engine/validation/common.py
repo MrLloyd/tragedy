@@ -24,11 +24,18 @@ def enum_values(enum_cls: type[E]) -> frozenset[str]:
 # 与 engine.models.identity.Condition 文档对齐
 KNOWN_CONDITION_TYPES = frozenset(
     {
+        "all_of",
+        "any_of",
         "token_check",
+        "identity_token_check",
+        "same_area_identity_token_check",
         "same_area_count",
         "character_alive",
+        "character_dead",
         "is_final_day",
         "identity_is",
+        "other_identity_is",
+        "identity_revealed",
         "ex_gauge_check",
         "has_trait",
         "area_is",

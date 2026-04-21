@@ -6,9 +6,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from engine.models.cards import CardPlacement
-from engine.models.enums import CardType, EffectType, GamePhase, Outcome, PlayerRole, TokenType
-from engine.models.identity import Effect
+from engine.models.cards import CardPlacement, PlacementIntent
+from engine.models.ability import Ability
+from engine.models.effects import Effect
+from engine.models.enums import AbilityTiming, AbilityType, CardType, EffectType, GamePhase, Outcome, PlayerRole, TokenType, Trait
+from engine.resolvers.ability_resolver import AbilityCandidate, AbilityResolver
+from engine.resolvers.incident_resolver import IncidentResolver
 
 from engine.event_bus import GameEvent, GameEventType
 
@@ -70,11 +73,185 @@ class PhaseHandler(ABC):
                  atomic_resolver: AtomicResolver) -> None:
         self.event_bus = event_bus
         self.atomic_resolver = atomic_resolver
+        self.ability_resolver = AbilityResolver()
 
     @abstractmethod
     def execute(self, state: GameState) -> PhaseSignal:
         """执行本阶段逻辑"""
         ...
+
+    def _emit_ability_declared(self, candidate: AbilityCandidate) -> None:
+        payload = {
+            "source_kind": candidate.source_kind,
+            "source_id": candidate.source_id,
+            "ability_id": candidate.ability.ability_id,
+            "timing": candidate.ability.timing.value,
+        }
+        if candidate.identity_id is not None:
+            payload["identity_id"] = candidate.identity_id
+        self.event_bus.emit(GameEvent(GameEventType.ABILITY_DECLARED, payload))
+
+    def _resolve_candidate(
+        self,
+        state: GameState,
+        candidate: AbilityCandidate,
+        *,
+        next_signal_factory: Callable[[], PhaseSignal],
+    ) -> PhaseSignal:
+        owner_id = self._candidate_owner_id(candidate)
+        prepared = self._prepare_effects_for_resolution(
+            state,
+            candidate,
+            owner_id=owner_id,
+            next_signal_factory=next_signal_factory,
+        )
+        if isinstance(prepared, WaitForInput):
+            return prepared
+
+        self._emit_ability_declared(candidate)
+        result = self.atomic_resolver.resolve(
+            state,
+            prepared,
+            sequential=candidate.ability.sequential,
+            perpetrator_id=owner_id,
+        )
+        self.ability_resolver.mark_ability_used(state, candidate)
+        signal = self._resolution_result_to_signal(result, default_reason=candidate.ability.ability_id)
+        if signal is not None:
+            return signal
+        return next_signal_factory()
+
+    def _execute_mandatory_batch(
+        self,
+        state: GameState,
+        candidates: list[AbilityCandidate],
+        *,
+        next_signal_factory: Callable[[], PhaseSignal],
+    ) -> PhaseSignal:
+        if not candidates:
+            return next_signal_factory()
+
+        candidate = candidates[0]
+
+        def _next() -> PhaseSignal:
+            return self._execute_mandatory_batch(
+                state,
+                candidates[1:],
+                next_signal_factory=next_signal_factory,
+            )
+
+        return self._resolve_candidate(
+            state,
+            candidate,
+            next_signal_factory=_next,
+        )
+
+    def _candidate_owner_id(self, candidate: AbilityCandidate) -> str:
+        if candidate.source_kind in {"identity", "goodwill", "derived"}:
+            return candidate.source_id
+        return ""
+
+    def _prepare_effects_for_resolution(
+        self,
+        state: GameState,
+        candidate: AbilityCandidate,
+        *,
+        owner_id: str,
+        next_signal_factory: Callable[[], PhaseSignal],
+    ) -> list[Effect] | WaitForInput:
+        effects = list(candidate.ability.effects)
+        for index, effect in enumerate(effects):
+            choices = self._resolve_effect_choice_options(state, owner_id=owner_id, effect=effect)
+            if choices is None:
+                continue
+            if not choices:
+                return []
+            if len(choices) == 1:
+                effects[index] = self._concretize_effect(effect, choices[0])
+                continue
+
+            def _on_choice(choice: Any, *, effect_index: int = index) -> PhaseSignal:
+                selected = str(choice)
+                if selected not in choices:
+                    raise ValueError(f"invalid ability target: {selected!r}")
+                updated = list(effects)
+                updated[effect_index] = self._concretize_effect(effect, selected)
+                follow_up = AbilityCandidate(
+                    source_kind=candidate.source_kind,
+                    source_id=candidate.source_id,
+                    ability=Ability(
+                        ability_id=candidate.ability.ability_id,
+                        name=candidate.ability.name,
+                        ability_type=candidate.ability.ability_type,
+                        timing=candidate.ability.timing,
+                        description=candidate.ability.description,
+                        condition=candidate.ability.condition,
+                        effects=updated,
+                        sequential=candidate.ability.sequential,
+                        goodwill_cost=candidate.ability.goodwill_cost,
+                        once_per_loop=candidate.ability.once_per_loop,
+                        once_per_day=candidate.ability.once_per_day,
+                        can_be_refused=candidate.ability.can_be_refused,
+                    ),
+                    identity_id=candidate.identity_id,
+                )
+                return self._resolve_candidate(
+                    state,
+                    follow_up,
+                    next_signal_factory=next_signal_factory,
+                )
+
+            return WaitForInput(
+                input_type="choose_ability_target",
+                prompt=f"请选择 {candidate.ability.name} 的目标",
+                options=choices,
+                player="mastermind",
+                callback=_on_choice,
+            )
+        return effects
+
+    def _resolve_effect_choice_options(
+        self,
+        state: GameState,
+        *,
+        owner_id: str,
+        effect: Effect,
+    ) -> list[str] | None:
+        if effect.target in {"same_area_any", "any_character", "any_board"} or effect.target.startswith("same_area_identity:"):
+            return self.ability_resolver.resolve_targets(
+                state,
+                owner_id=owner_id,
+                selector=effect.target,
+                alive_only=True,
+            )
+        if effect.target == "same_area_board":
+            return self.ability_resolver.resolve_targets(
+                state,
+                owner_id=owner_id,
+                selector=effect.target,
+                alive_only=True,
+            )
+        return None
+
+    @staticmethod
+    def _concretize_effect(effect: Effect, target_id: str) -> Effect:
+        return Effect(
+            effect_type=effect.effect_type,
+            target=target_id,
+            token_type=effect.token_type,
+            amount=effect.amount,
+            chooser=effect.chooser,
+            value=effect.value,
+            condition=effect.condition,
+        )
+
+    @staticmethod
+    def _resolution_result_to_signal(result: Any, *, default_reason: str) -> ForceLoopEnd | None:
+        if result.outcome in (Outcome.PROTAGONIST_DEATH, Outcome.PROTAGONIST_FAILURE):
+            return ForceLoopEnd(reason=default_reason)
+        if any(m.mutation_type == "force_loop_end" for m in result.mutations):
+            return ForceLoopEnd(reason=default_reason)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -93,9 +270,40 @@ class LoopStartHandler(PhaseHandler):
     phase = GamePhase.LOOP_START
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 轮回开始：时之裂隙讨论、跨轮回效果结算
-        # TODO: 结算因果线、亲友身份公开效果等
-        return PhaseComplete()
+        self._apply_causal_line(state)
+        mandatory = self.ability_resolver.collect_abilities(
+            state,
+            timing=AbilityTiming.LOOP_START,
+            ability_type=AbilityType.MANDATORY,
+            alive_only=False,
+        )
+        return self._execute_mandatory_batch(
+            state,
+            mandatory,
+            next_signal_factory=PhaseComplete,
+        )
+
+    def _apply_causal_line(self, state: GameState) -> None:
+        """BTX 因果线：上轮结束时有友好的角色，本轮开始 +2 不安。"""
+        if not any(rule.rule_id == "btx_causal_line" for rule in state.script.rules_x):
+            return
+
+        last_snapshot = state.get_last_loop_snapshot()
+        if last_snapshot is None:
+            return
+
+        effects = [
+            Effect(
+                effect_type=EffectType.PLACE_TOKEN,
+                target=character_id,
+                token_type=TokenType.PARANOIA,
+                amount=2,
+            )
+            for character_id, character_snapshot in last_snapshot.character_snapshots.items()
+            if character_snapshot.tokens.goodwill > 0 and character_id in state.characters
+        ]
+        if effects:
+            self.atomic_resolver.resolve(state, effects)
 
 
 class TurnStartHandler(PhaseHandler):
@@ -110,25 +318,46 @@ class MastermindActionHandler(PhaseHandler):
     phase = GamePhase.MASTERMIND_ACTION
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 剧作家暗置 3 张行动牌
+        # 剧作家暗置恰好 3 张行动牌（可用牌不足时取全部）
         available = state.mastermind_hand.get_available()
+        max_cards = min(3, len(available))
 
         def _on_choice(choice: Any) -> PhaseSignal:
-            # 最小闭环：允许 UI 一次提交 1~3 张牌，合法后标记为已使用并记录放置。
-            selected = choice if isinstance(choice, list) else [choice]
-            if not selected or len(selected) > 3:
-                raise ValueError("mastermind must choose 1 to 3 cards")
+            # 接收 list[PlacementIntent]
+            intents = choice if isinstance(choice, list) else [choice]
+            if not intents or len(intents) != max_cards:
+                raise ValueError(f"mastermind must choose exactly {max_cards} cards")
 
-            for card in selected:
-                if card not in available:
+            for intent in intents:
+                if intent.card not in available:
                     raise ValueError("selected card is not available in mastermind hand")
-                card.is_used_this_loop = True
+
+                # 验证目标合法性
+                if intent.target_type == "character":
+                    ch = state.characters.get(intent.target_id)
+                    if ch is None:
+                        raise ValueError(f"target character {intent.target_id} not found")
+                    if not ch.is_alive:
+                        raise ValueError(f"target character {intent.target_id} is not alive")
+                    if Trait.NO_ACTION_CARDS in ch.base_traits:
+                        raise ValueError(f"target character {intent.target_id} cannot receive action cards")
+                elif intent.target_type == "board":
+                    # 验证 target_id 是合法 AreaId
+                    try:
+                        from engine.models.enums import AreaId
+                        AreaId(intent.target_id)
+                    except ValueError:
+                        raise ValueError(f"invalid board target area: {intent.target_id}")
+                else:
+                    raise ValueError(f"invalid target_type: {intent.target_type}")
+
+                # 创建放置记录（不标记 is_used_this_loop）
                 state.placed_cards.append(
                     CardPlacement(
-                        card=card,
+                        card=intent.card,
                         owner=PlayerRole.MASTERMIND,
-                        target_type="board",
-                        target_id="school",
+                        target_type=intent.target_type,
+                        target_id=intent.target_id,
                         face_down=True,
                     )
                 )
@@ -147,31 +376,63 @@ class ProtagonistActionHandler(PhaseHandler):
     phase = GamePhase.PROTAGONIST_ACTION
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 主人公按队长起顺时针依次放牌
-        leader = state.leader_index
-        hand = state.protagonist_hands[leader]
+        # 3 名主人公按队长起顺时针依次放牌（递归 callback 链）
+        order = [(state.leader_index + i) % 3 for i in range(3)]
+        return self._request_placement(state, order)
+
+    def _request_placement(self, state: GameState, remaining: list[int]) -> PhaseSignal:
+        """递归请求剩余主人公放牌"""
+        if not remaining:
+            return PhaseComplete()
+
+        idx = remaining[0]
+        rest = remaining[1:]
+        hand = state.protagonist_hands[idx]
         available = hand.get_available()
 
-        def _on_choice(choice: Any) -> PhaseSignal:
-            if choice not in available:
+        def _on_choice(intent: Any) -> PhaseSignal:
+            # 接收 PlacementIntent
+            if intent.card not in available:
                 raise ValueError("selected card is not available in protagonist hand")
-            choice.is_used_this_loop = True
+
+            # 验证目标合法性
+            if intent.target_type == "character":
+                ch = state.characters.get(intent.target_id)
+                if ch is None:
+                    raise ValueError(f"target character {intent.target_id} not found")
+                if not ch.is_alive:
+                    raise ValueError(f"target character {intent.target_id} is not alive")
+                if Trait.NO_ACTION_CARDS in ch.base_traits:
+                    raise ValueError(f"target character {intent.target_id} cannot receive action cards")
+            elif intent.target_type == "board":
+                # 验证 target_id 是合法 AreaId
+                try:
+                    from engine.models.enums import AreaId
+                    AreaId(intent.target_id)
+                except ValueError:
+                    raise ValueError(f"invalid board target area: {intent.target_id}")
+            else:
+                raise ValueError(f"invalid target_type: {intent.target_type}")
+
+            # 创建放置记录（不标记 is_used_this_loop）
             state.placed_cards.append(
                 CardPlacement(
-                    card=choice,
+                    card=intent.card,
                     owner=hand.owner,
-                    target_type="board",
-                    target_id="school",
+                    target_type=intent.target_type,
+                    target_id=intent.target_id,
                     face_down=True,
                 )
             )
-            return PhaseComplete()
+
+            # 链接下一名主人公
+            return self._request_placement(state, rest)
 
         return WaitForInput(
             input_type="place_action_card",
-            prompt=f"主人公 {leader + 1}（队长）请放置 1 张行动牌",
+            prompt=f"主人公 {idx + 1} 请放置 1 张行动牌",
             options=available,
-            player=f"protagonist_{leader}",
+            player=f"protagonist_{idx}",
             callback=_on_choice,
         )
 
@@ -305,74 +566,141 @@ class PlaywrightAbilityHandler(PhaseHandler):
     phase = GamePhase.PLAYWRIGHT_ABILITY
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 先同步结算全部强制能力，再由剧作家逐个声明任意能力
-        # TODO: 收集可用能力，等待剧作家选择
-        return PhaseComplete()
+        mandatory = self.ability_resolver.collect_abilities(
+            state,
+            timing=AbilityTiming.PLAYWRIGHT_ABILITY,
+            ability_type=AbilityType.MANDATORY,
+        )
+        return self._execute_mandatory_batch(
+            state,
+            mandatory,
+            next_signal_factory=lambda: self._request_optional_playwright_ability(state),
+        )
+
+    def _request_optional_playwright_ability(self, state: GameState) -> PhaseSignal:
+        candidates = self.ability_resolver.collect_abilities(
+            state,
+            timing=AbilityTiming.PLAYWRIGHT_ABILITY,
+            ability_type=AbilityType.OPTIONAL,
+        )
+        if not candidates:
+            return PhaseComplete()
+
+        options: list[Any] = ["pass", *candidates]
+
+        def _on_choice(choice: Any) -> PhaseSignal:
+            if choice == "pass":
+                return PhaseComplete()
+            if choice not in candidates:
+                raise ValueError("invalid playwright ability selection")
+            return self._resolve_candidate(
+                state,
+                choice,
+                next_signal_factory=lambda: self._request_optional_playwright_ability(state),
+            )
+
+        return WaitForInput(
+            input_type="choose_playwright_ability",
+            prompt="剧作家请选择要声明的能力，或 pass",
+            options=options,
+            player="mastermind",
+            callback=_on_choice,
+        )
 
 
 class ProtagonistAbilityHandler(PhaseHandler):
     phase = GamePhase.PROTAGONIST_ABILITY
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 队长声明友好能力，剧作家可拒绝
-        # TODO: 收集可声明能力，等待队长选择
-        return PhaseComplete()
+        return self._request_goodwill_ability(state)
+
+    def _request_goodwill_ability(self, state: GameState) -> PhaseSignal:
+        candidates = self.ability_resolver.collect_goodwill_abilities(state)
+        if not candidates:
+            return PhaseComplete()
+
+        leader = f"protagonist_{state.leader_index}"
+        options: list[Any] = ["pass", *candidates]
+
+        def _on_choice(choice: Any) -> PhaseSignal:
+            if choice == "pass":
+                return PhaseComplete()
+            if choice not in candidates:
+                raise ValueError("invalid goodwill ability selection")
+            return self._handle_goodwill_declaration(state, choice)
+
+        return WaitForInput(
+            input_type="choose_goodwill_ability",
+            prompt="队长请选择要声明的友好能力，或 pass",
+            options=options,
+            player=leader,
+            callback=_on_choice,
+        )
+
+    def _handle_goodwill_declaration(
+        self,
+        state: GameState,
+        candidate: AbilityCandidate,
+    ) -> PhaseSignal:
+        owner_id = candidate.source_id
+        should_ignore = self.ability_resolver.goodwill_should_be_ignored(state, owner_id)
+        if candidate.ability.can_be_refused and not should_ignore:
+            def _on_refuse(choice: Any) -> PhaseSignal:
+                if choice not in {"allow", "refuse"}:
+                    raise ValueError("invalid goodwill response")
+                if choice == "refuse":
+                    self.event_bus.emit(GameEvent(
+                        GameEventType.ABILITY_REFUSED,
+                        {"character_id": owner_id, "ability_id": candidate.ability.ability_id},
+                    ))
+                    self.ability_resolver.mark_ability_used(state, candidate)
+                    return self._request_goodwill_ability(state)
+                return self._resolve_goodwill_ability(state, candidate)
+
+            return WaitForInput(
+                input_type="respond_goodwill_ability",
+                prompt="剧作家是否拒绝该友好能力？",
+                options=["allow", "refuse"],
+                player="mastermind",
+                callback=_on_refuse,
+            )
+        return self._resolve_goodwill_ability(state, candidate)
+
+    def _resolve_goodwill_ability(
+        self,
+        state: GameState,
+        candidate: AbilityCandidate,
+    ) -> PhaseSignal:
+        owner = state.characters.get(candidate.source_id)
+        if owner is None:
+            return self._request_goodwill_ability(state)
+        owner.tokens.remove(TokenType.GOODWILL, candidate.ability.goodwill_cost)
+        return self._resolve_candidate(
+            state,
+            candidate,
+            next_signal_factory=lambda: self._request_goodwill_ability(state),
+        )
 
 
 class IncidentHandler(PhaseHandler):
     phase = GamePhase.INCIDENT
 
+    def __init__(self, event_bus: EventBus,
+                 atomic_resolver: AtomicResolver) -> None:
+        super().__init__(event_bus, atomic_resolver)
+        self.incident_resolver = IncidentResolver(event_bus, atomic_resolver)
+
     def execute(self, state: GameState) -> PhaseSignal:
         """
         事件阶段。
 
-        触发条件（规则文档 §3.13）：
-          当事人存活 + 当事人不安 >= 当事人不安限度 → 事件发生
-
-        效果执行依赖 state.incident_defs（Phase 2 module_loader 填充）。
-        incident_defs 为空时仅做触发标记，不执行效果（安全降级）。
+        阶段处理器只负责当天事件调度；事件触发判定、公开语义与
+        效果结算由 IncidentResolver 统一负责。
         """
         schedules = state.get_incidents_for_day(state.current_day)
 
         for schedule in schedules:
-            if schedule.occurred:
-                continue
-
-            perpetrator = state.characters.get(schedule.perpetrator_id)
-            if perpetrator is None:
-                continue
-
-            # 触发条件：存活 + 不安 >= 不安限度
-            if not perpetrator.is_alive:
-                continue
-            if perpetrator.tokens.paranoia < perpetrator.paranoia_limit:
-                continue
-
-            # 事件触发
-            schedule.occurred = True
-            state.incidents_occurred_this_loop.append(schedule.incident_id)
-
-            self.event_bus.emit(GameEvent(
-                GameEventType.INCIDENT_OCCURRED,
-                {
-                    "incident_id": schedule.incident_id,
-                    "perpetrator_id": schedule.perpetrator_id,
-                    "day": state.current_day,
-                },
-            ))
-
-            # 效果执行（需 incident_defs 已加载）
-            incident_def = state.incident_defs.get(schedule.incident_id)
-            if incident_def is None:
-                continue
-
-            result = self.atomic_resolver.resolve(
-                state,
-                incident_def.effects,
-                sequential=incident_def.sequential,
-                perpetrator_id=schedule.perpetrator_id,
-            )
-
+            result = self.incident_resolver.resolve_schedule(state, schedule)
             if result.outcome in (Outcome.PROTAGONIST_DEATH, Outcome.PROTAGONIST_FAILURE):
                 return ForceLoopEnd(reason=schedule.incident_id)
 
@@ -391,18 +719,110 @@ class TurnEndHandler(PhaseHandler):
     phase = GamePhase.TURN_END
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 1. EX 槽更新（预留）
-        # 2. 全部强制能力同步结算（杀人狂等）
-        # 3. 剧作家逐个声明任意能力（杀手、求爱者等）
-        # TODO: 实现 turn_end 能力结算
-        return PhaseComplete()
+        timings = [AbilityTiming.TURN_END]
+        if state.is_final_day:
+            timings.append(AbilityTiming.FINAL_DAY_TURN_END)
+
+        mandatory: list[AbilityCandidate] = []
+        for timing in timings:
+            mandatory.extend(
+                self.ability_resolver.collect_abilities(
+                    state,
+                    timing=timing,
+                    ability_type=AbilityType.MANDATORY,
+                )
+            )
+        return self._execute_mandatory_batch(
+            state,
+            mandatory,
+            next_signal_factory=lambda: self._request_optional_turn_end_ability(state, timings),
+        )
+
+    def _request_optional_turn_end_ability(
+        self,
+        state: GameState,
+        timings: list[AbilityTiming],
+    ) -> PhaseSignal:
+        candidates: list[AbilityCandidate] = []
+        for timing in timings:
+            candidates.extend(
+                self.ability_resolver.collect_abilities(
+                    state,
+                    timing=timing,
+                    ability_type=AbilityType.OPTIONAL,
+                )
+            )
+        if not candidates:
+            return PhaseComplete()
+
+        options: list[Any] = ["pass", *candidates]
+
+        def _on_choice(choice: Any) -> PhaseSignal:
+            if choice == "pass":
+                return PhaseComplete()
+            if choice not in candidates:
+                raise ValueError("invalid turn_end ability selection")
+            return self._resolve_candidate(
+                state,
+                choice,
+                next_signal_factory=lambda: self._request_optional_turn_end_ability(state, timings),
+            )
+
+        return WaitForInput(
+            input_type="choose_turn_end_ability",
+            prompt="剧作家请选择回合结束阶段能力，或 pass",
+            options=options,
+            player="mastermind",
+            callback=_on_choice,
+        )
 
 
 class LoopEndHandler(PhaseHandler):
     phase = GamePhase.LOOP_END
 
     def execute(self, state: GameState) -> PhaseSignal:
-        # 结算"轮回结束时"效果，保存 LoopSnapshot
+        candidates = self.ability_resolver.collect_abilities(
+            state,
+            timing=AbilityTiming.LOOP_END,
+            ability_type=None,
+            alive_only=False,
+        )
+        return self._execute_loop_end_candidates(state, candidates)
+
+    def _execute_loop_end_candidates(
+        self,
+        state: GameState,
+        candidates: list[AbilityCandidate],
+    ) -> PhaseSignal:
+        if not candidates:
+            return self._finalize_loop_end(state)
+
+        candidate = candidates[0]
+        owner_id = self._candidate_owner_id(candidate)
+        prepared = self._prepare_effects_for_resolution(
+            state,
+            candidate,
+            owner_id=owner_id,
+            next_signal_factory=lambda: self._execute_loop_end_candidates(state, candidates[1:]),
+        )
+        if isinstance(prepared, WaitForInput):
+            return prepared
+
+        self._emit_ability_declared(candidate)
+        self.atomic_resolver.resolve(
+            state,
+            prepared,
+            sequential=candidate.ability.sequential,
+            perpetrator_id=owner_id,
+        )
+        self.ability_resolver.mark_ability_used(state, candidate)
+        return self._execute_loop_end_candidates(state, candidates[1:])
+
+    def _finalize_loop_end(self, state: GameState) -> PhaseSignal:
+        self.event_bus.emit(GameEvent(
+            GameEventType.LOOP_ENDED,
+            {"loop": state.current_loop},
+        ))
         state.save_loop_snapshot()
         return PhaseComplete()
 

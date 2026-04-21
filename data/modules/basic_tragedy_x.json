@@ -37,8 +37,21 @@
           "name": "关键人物密谋失败条件",
           "ability_type": "loss_condition",
           "timing": "loop_end",
+          "condition": {
+            "condition_type": "identity_token_check",
+            "params": {
+              "identity_id": "key_person",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          },
           "effects": [
-            { "effect_type": "protagonist_failure", "target": "self", "value": "key_person_intrigue_2" }
+            {
+              "effect_type": "protagonist_failure",
+              "target": "self",
+              "value": "key_person_intrigue_2"
+            }
           ]
         }
       ]
@@ -53,7 +66,23 @@
       "identity_slots": {
         "rumormonger": 1
       },
-      "abilities": []
+      "abilities": [
+        {
+          "ability_id": "btx_rumors_playwright_place_intrigue",
+          "name": "流言四起放置密谋",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "once_per_loop": true,
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "any_board",
+              "token_type": "intrigue",
+              "amount": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "rule_id": "btx_latent_serial_killer",
@@ -65,45 +94,603 @@
         "friend": 1
       },
       "abilities": []
+    },
+    {
+      "rule_id": "btx_causal_line",
+      "name": "因果线",
+      "rule_type": "X",
+      "module": "basic_tragedy_x",
+      "identity_slots": {},
+      "abilities": []
     }
   ],
   "identities": [
-    { "identity_id": "key_person", "name": "关键人物", "module": "basic_tragedy_x", "traits": [], "abilities": [] },
-    { "identity_id": "killer", "name": "杀手", "module": "basic_tragedy_x", "traits": ["ignore_goodwill"], "abilities": [] },
-    { "identity_id": "mastermind", "name": "主谋", "module": "basic_tragedy_x", "traits": ["ignore_goodwill"], "abilities": [] },
-    { "identity_id": "cultist", "name": "邪教徒", "module": "basic_tragedy_x", "traits": ["must_ignore_goodwill"], "abilities": [] },
-    { "identity_id": "friend", "name": "亲友", "module": "basic_tragedy_x", "traits": [], "max_count": 2, "abilities": [] },
-    { "identity_id": "serial_killer", "name": "杀人狂", "module": "basic_tragedy_x", "traits": [], "abilities": [] },
-    { "identity_id": "rumormonger", "name": "传谣人", "module": "basic_tragedy_x", "traits": [], "max_count": 1, "abilities": [] }
-  ],
-  "incidents": [
     {
-      "incident_id": "murder",
-      "name": "谋杀",
+      "identity_id": "key_person",
+      "name": "关键人物",
       "module": "basic_tragedy_x",
-      "sequential": false,
-      "effects": [
-        { "effect_type": "kill_character", "target": "same_area_other" }
+      "traits": [],
+      "abilities": [
+        {
+          "ability_id": "key_person_on_death",
+          "name": "关键人物死亡",
+          "ability_type": "mandatory",
+          "timing": "on_death",
+          "effects": [
+            {
+              "effect_type": "protagonist_failure",
+              "target": "self",
+              "value": "key_person_dead"
+            },
+            {
+              "effect_type": "force_loop_end",
+              "target": "self",
+              "value": "key_person_dead"
+            }
+          ]
+        }
       ]
     },
+    {
+      "identity_id": "killer",
+      "name": "杀手",
+      "module": "basic_tragedy_x",
+      "traits": [
+        "ignore_goodwill"
+      ],
+      "abilities": [
+        {
+          "ability_id": "killer_turn_end_kill_key_person",
+          "name": "杀手杀死关键人物",
+          "ability_type": "optional",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "same_area_identity_token_check",
+            "params": {
+              "identity_id": "key_person",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "kill_character",
+              "target": "same_area_identity:key_person"
+            }
+          ]
+        },
+        {
+          "ability_id": "killer_turn_end_protagonist_death",
+          "name": "杀手密谋致死",
+          "ability_type": "optional",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "self",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 4
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "protagonist_death",
+              "target": "self",
+              "value": "killer_intrigue_4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "mastermind",
+      "name": "主谋",
+      "module": "basic_tragedy_x",
+      "traits": [
+        "ignore_goodwill"
+      ],
+      "abilities": [
+        {
+          "ability_id": "mastermind_playwright_place_intrigue_character",
+          "name": "主谋放置密谋到角色",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_any",
+              "token_type": "intrigue",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "ability_id": "mastermind_playwright_place_intrigue_board",
+          "name": "主谋放置密谋到版图",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_board",
+              "token_type": "intrigue",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "cultist",
+      "name": "邪教徒",
+      "module": "basic_tragedy_x",
+      "traits": [
+        "must_ignore_goodwill"
+      ],
+      "abilities": [
+        {
+          "ability_id": "cultist_action_resolve_nullify_forbid_intrigue_character",
+          "name": "邪教徒无效化角色禁止密谋",
+          "ability_type": "optional",
+          "timing": "action_resolve",
+          "effects": [
+            {
+              "effect_type": "nullify_card",
+              "target": "same_area_any",
+              "value": "forbid_intrigue"
+            }
+          ]
+        },
+        {
+          "ability_id": "cultist_action_resolve_nullify_forbid_intrigue_board",
+          "name": "邪教徒无效化版图禁止密谋",
+          "ability_type": "optional",
+          "timing": "action_resolve",
+          "effects": [
+            {
+              "effect_type": "nullify_card",
+              "target": "same_area_board",
+              "value": "forbid_intrigue"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "friend",
+      "name": "亲友",
+      "module": "basic_tragedy_x",
+      "traits": [],
+      "max_count": 2,
+      "abilities": [
+        {
+          "ability_id": "friend_loop_end_revealed_loss",
+          "name": "亲友死亡失败条件",
+          "ability_type": "loss_condition",
+          "timing": "loop_end",
+          "condition": {
+            "condition_type": "character_dead",
+            "params": {
+              "target": "self"
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "reveal_identity",
+              "target": "self"
+            },
+            {
+              "effect_type": "protagonist_failure",
+              "target": "self",
+              "value": "friend_dead"
+            }
+          ]
+        },
+        {
+          "ability_id": "friend_loop_start_place_goodwill",
+          "name": "亲友公开后轮回开始加友好",
+          "ability_type": "mandatory",
+          "timing": "loop_start",
+          "condition": {
+            "condition_type": "identity_revealed",
+            "params": {
+              "target": "self"
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "self",
+              "token_type": "goodwill",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "serial_killer",
+      "name": "杀人狂",
+      "module": "basic_tragedy_x",
+      "traits": [],
+      "abilities": [
+        {
+          "ability_id": "serial_killer_turn_end_kill_lone_target",
+          "name": "杀人狂单独杀人",
+          "ability_type": "mandatory",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "same_area_count",
+            "params": {
+              "target": "self",
+              "operator": "==",
+              "value": 2
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "kill_character",
+              "target": "same_area_other"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "rumormonger",
+      "name": "传谣人",
+      "module": "basic_tragedy_x",
+      "traits": [],
+      "max_count": 1,
+      "abilities": [
+        {
+          "ability_id": "rumormonger_playwright_place_paranoia",
+          "name": "传谣人放置不安",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_any",
+              "token_type": "paranoia",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "time_traveler",
+      "name": "时间旅者",
+      "module": "basic_tragedy_x",
+      "traits": [
+        "immortal"
+      ],
+      "abilities": [
+        {
+          "ability_id": "time_traveler_action_resolve_ignore_forbid_goodwill",
+          "name": "时间旅者无视禁止友好",
+          "ability_type": "mandatory",
+          "timing": "action_resolve",
+          "effects": [
+            {
+              "effect_type": "nullify_card",
+              "target": "self",
+              "value": "forbid_goodwill"
+            }
+          ]
+        },
+        {
+          "ability_id": "time_traveler_final_day_failure",
+          "name": "时间旅者最终日失败条件",
+          "ability_type": "optional",
+          "timing": "final_day_turn_end",
+          "condition": {
+            "condition_type": "all_of",
+            "params": {
+              "conditions": [
+                {
+                  "condition_type": "is_final_day"
+                },
+                {
+                  "condition_type": "token_check",
+                  "params": {
+                    "target": "self",
+                    "token": "goodwill",
+                    "operator": "<=",
+                    "value": 2
+                  }
+                }
+              ]
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "protagonist_failure",
+              "target": "self",
+              "value": "time_traveler_goodwill_2"
+            },
+            {
+              "effect_type": "force_loop_end",
+              "target": "self",
+              "value": "time_traveler_goodwill_2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "beloved",
+      "name": "心上人",
+      "module": "basic_tragedy_x",
+      "traits": [],
+      "abilities": [
+        {
+          "ability_id": "beloved_on_lover_death_gain_paranoia",
+          "name": "心上人因求爱者死亡而不安",
+          "ability_type": "mandatory",
+          "timing": "on_other_death",
+          "condition": {
+            "condition_type": "other_identity_is",
+            "params": {
+              "value": "lover"
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "self",
+              "token_type": "paranoia",
+              "amount": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "lover",
+      "name": "求爱者",
+      "module": "basic_tragedy_x",
+      "traits": [],
+      "abilities": [
+        {
+          "ability_id": "lover_on_beloved_death_gain_paranoia",
+          "name": "求爱者因心上人死亡而不安",
+          "ability_type": "mandatory",
+          "timing": "on_other_death",
+          "condition": {
+            "condition_type": "other_identity_is",
+            "params": {
+              "value": "beloved"
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "self",
+              "token_type": "paranoia",
+              "amount": 6
+            }
+          ]
+        },
+        {
+          "ability_id": "lover_turn_end_protagonist_death",
+          "name": "求爱者绝望致死",
+          "ability_type": "optional",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "all_of",
+            "params": {
+              "conditions": [
+                {
+                  "condition_type": "token_check",
+                  "params": {
+                    "target": "self",
+                    "token": "intrigue",
+                    "operator": ">=",
+                    "value": 1
+                  }
+                },
+                {
+                  "condition_type": "token_check",
+                  "params": {
+                    "target": "self",
+                    "token": "paranoia",
+                    "operator": ">=",
+                    "value": 3
+                  }
+                }
+              ]
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "protagonist_death",
+              "target": "self",
+              "value": "lover_despair_condition"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity_id": "unstable_factor",
+      "name": "不安定因子",
+      "module": "basic_tragedy_x",
+      "traits": [
+        "ignore_goodwill"
+      ],
+      "abilities": []
+    }
+  ],
+  "incidents": [
     {
       "incident_id": "unease_spread",
       "name": "不安扩散",
       "module": "basic_tragedy_x",
       "sequential": true,
       "effects": [
-        { "effect_type": "place_token", "target": "any_character", "token_type": "paranoia", "amount": 2 },
-        { "effect_type": "place_token", "target": "any_character", "token_type": "intrigue", "amount": 1 }
+        {
+          "effect_type": "place_token",
+          "target": "any_character",
+          "token_type": "paranoia",
+          "amount": 2
+        },
+        {
+          "effect_type": "place_token",
+          "target": "another_character",
+          "token_type": "intrigue",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "incident_id": "murder",
+      "name": "谋杀",
+      "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "same_area_other"
+        }
+      ]
+    },
+    {
+      "incident_id": "spiritual_contamination",
+      "name": "邪气污染",
+      "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "place_token",
+          "target": "shrine",
+          "token_type": "intrigue",
+          "amount": 2
+        }
       ]
     },
     {
       "incident_id": "hospital_accident",
       "name": "医院事故",
       "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "hospital_all",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "hospital",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 1
+            }
+          }
+        },
+        {
+          "effect_type": "protagonist_death",
+          "target": "self",
+          "value": "hospital_intrigue_2",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "hospital",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "incident_id": "suicide",
+      "name": "自杀",
+      "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "incident_id": "spread",
+      "name": "散播",
+      "module": "basic_tragedy_x",
       "sequential": true,
       "effects": [
-        { "effect_type": "kill_character", "target": "hospital_all" },
-        { "effect_type": "protagonist_death", "target": "self", "value": "hospital_intrigue_2" }
+        {
+          "effect_type": "remove_token",
+          "target": "any_character",
+          "token_type": "goodwill",
+          "amount": 2
+        },
+        {
+          "effect_type": "place_token",
+          "target": "another_character",
+          "token_type": "goodwill",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "incident_id": "butterfly_effect",
+      "name": "蝴蝶效应",
+      "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "place_token",
+          "target": "same_area_any",
+          "amount": 1,
+          "value": "choose_token_type"
+        }
+      ]
+    },
+    {
+      "incident_id": "disappearance",
+      "name": "失踪",
+      "module": "basic_tragedy_x",
+      "sequential": true,
+      "effects": [
+        {
+          "effect_type": "move_character",
+          "target": "self",
+          "value": "any_board"
+        },
+        {
+          "effect_type": "place_token",
+          "target": "same_area_board",
+          "token_type": "intrigue",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "incident_id": "long_range_murder",
+      "name": "远距离杀人",
+      "module": "basic_tragedy_x",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "any_character",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "other",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          }
+        }
       ]
     }
   ]

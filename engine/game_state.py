@@ -21,8 +21,8 @@ from engine.models.cards import (
 )
 from engine.models.character import CharacterEndState, CharacterState, TokenSet
 from engine.models.identity import IdentityDef
-from engine.models.incident import IncidentDef, IncidentSchedule
-from engine.models.script import Script
+from engine.models.incident import IncidentDef, IncidentPublicResult, IncidentSchedule
+from engine.models.script import ModuleDef, Script
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +36,14 @@ class LoopSnapshot:
     character_snapshots: dict[str, CharacterEndState] = field(default_factory=dict)
 
 
+@dataclass
+class AbilityRuntimeState:
+    """能力运行时状态：统一维护限次计数。"""
+
+    usages_this_loop: dict[str, int] = field(default_factory=dict)
+    usages_this_day: dict[str, int] = field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # GameState — 聚合根
 # ---------------------------------------------------------------------------
@@ -44,6 +52,9 @@ class GameState:
 
     # ---- 剧本 ----
     script: Script = field(default_factory=Script)
+
+    # ---- 模组配置（由 module_loader + apply_loaded_module 填充；未开局时可为 None） ----
+    module_def: Optional[ModuleDef] = None
 
     # ---- 轮回 / 天 / 阶段 ----
     current_loop: int = 1
@@ -93,10 +104,14 @@ class GameState:
 
     # ---- 事件追踪 ----
     incidents_occurred_this_loop: list[str] = field(default_factory=list)
+    incident_results_this_loop: list[IncidentPublicResult] = field(default_factory=list)
     # Phase 2 module_loader 填充；为空时 IncidentHandler 仅做触发标记，跳过效果执行
     incident_defs: dict[str, IncidentDef] = field(default_factory=dict)
     # Phase 2 module_loader 填充；为空时 ON_DEATH 能力触发跳过（安全降级）
     identity_defs: dict[str, IdentityDef] = field(default_factory=dict)
+
+    # ---- 能力运行时状态（统一限次，P4-2） ----
+    ability_runtime: AbilityRuntimeState = field(default_factory=AbilityRuntimeState)
 
     # ---- 跨轮回历史 ----
     loop_history: list[LoopSnapshot] = field(default_factory=list)
@@ -141,6 +156,11 @@ class GameState:
 
         state = cls(
             script=script,
+            module_def=ModuleDef(
+                module_id="first_steps",
+                name="minimal-test",
+                has_final_guess=False,
+            ),
             current_loop=1,
             current_day=1,
             leader_index=0,
@@ -182,6 +202,13 @@ class GameState:
     @property
     def is_last_loop(self) -> bool:
         return self.current_loop >= self.max_loops
+
+    @property
+    def has_final_guess(self) -> bool:
+        """模组是否包含最终决战阶段（未加载模组时默认 True，与旧硬编码行为一致）"""
+        if self.module_def is not None:
+            return self.module_def.has_final_guess
+        return True
 
     def characters_in_area(self, area: AreaId, alive_only: bool = True
                            ) -> list[CharacterState]:
@@ -282,6 +309,9 @@ class GameState:
         for inc in self.script.incidents:
             inc.occurred = False
         self.incidents_occurred_this_loop.clear()
+        self.incident_results_this_loop.clear()
+        self.ability_runtime.usages_this_loop.clear()
+        self.ability_runtime.usages_this_day.clear()
 
         # EX 槽
         if self.ex_gauge_resets_per_loop:
@@ -303,6 +333,7 @@ class GameState:
         self.current_day += 1
         self.placed_cards.clear()
         self.world_moved_today = False
+        self.ability_runtime.usages_this_day.clear()
 
     def rotate_leader(self) -> None:
         """队长轮换 1→2→3→1"""

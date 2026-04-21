@@ -5,12 +5,14 @@ from __future__ import annotations
 from engine.event_bus import EventBus, GameEventType
 from engine.game_state import GameState
 from engine.models.character import CharacterState
-from engine.models.enums import AreaId, EffectType, TokenType
-from engine.models.identity import Effect
+from engine.models.enums import AreaId, EffectType
+from engine.models.effects import Condition, Effect
 from engine.models.incident import IncidentDef, IncidentSchedule
 from engine.phases.phase_base import ForceLoopEnd, IncidentHandler, PhaseComplete
 from engine.resolvers.atomic_resolver import AtomicResolver
 from engine.resolvers.death_resolver import DeathResolver
+from engine.resolvers.incident_resolver import IncidentResolver
+from engine.rules.module_loader import apply_loaded_module, load_module
 
 
 # ---------------------------------------------------------------------------
@@ -213,3 +215,236 @@ def test_incident_same_area_all_kills_all_in_area() -> None:
     # 当事人和受害者都应死亡
     assert not state.characters["perp"].is_alive
     assert not state.characters["victim"].is_alive
+
+
+def test_incident_resolver_public_result_does_not_expose_perpetrator() -> None:
+    """公开结果只描述事件和现象，不包含当事人。"""
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = _make_state_with_incident(paranoia=3, paranoia_limit=2)
+
+    result = resolver.resolve_schedule(state, state.script.incidents[0])
+
+    assert result.occurred
+    assert result.public_result is not None
+    assert result.public_result.incident_id == "test_incident"
+    assert result.public_result.occurred
+    assert not hasattr(result.public_result, "perpetrator_id")
+    assert len(state.incident_results_this_loop) == 1
+    assert state.incident_results_this_loop[0] == result.public_result
+    assert not hasattr(state.incident_results_this_loop[0], "perpetrator_id")
+
+
+def test_incident_resolver_respects_extra_condition() -> None:
+    """事件专属条件由 IncidentResolver 处理，方便后续扩展特殊机制。"""
+    incident_def = IncidentDef(
+        incident_id="final_day_incident",
+        name="最终日事件",
+        module="test",
+        effects=[Effect(effect_type=EffectType.NO_EFFECT)],
+        extra_condition=Condition(condition_type="is_final_day"),
+    )
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = _make_state_with_incident(
+        paranoia=3,
+        paranoia_limit=2,
+        day=1,
+        incident_id="final_day_incident",
+        incident_def=incident_def,
+    )
+
+    result = resolver.resolve_schedule(state, state.script.incidents[0])
+
+    assert not result.occurred
+    assert not state.script.incidents[0].occurred
+    assert len(state.incident_results_this_loop) == 1
+    assert state.incident_results_this_loop[0].occurred is False
+
+
+def test_first_steps_and_btx_incident_pool_matches_appendix_subset() -> None:
+    assert set(load_module("first_steps").incident_defs) == {
+        "unease_spread",
+        "murder",
+        "hospital_accident",
+        "suicide",
+        "spread",
+        "disappearance",
+        "long_range_murder",
+    }
+    assert set(load_module("basic_tragedy_x").incident_defs) == {
+        "unease_spread",
+        "murder",
+        "spiritual_contamination",
+        "hospital_accident",
+        "suicide",
+        "spread",
+        "butterfly_effect",
+        "disappearance",
+        "long_range_murder",
+    }
+
+
+def test_hospital_accident_uses_board_intrigue_thresholds() -> None:
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = GameState.create_minimal_test_state(days_per_loop=3)
+    apply_loaded_module(state, load_module("basic_tragedy_x"))
+    state.current_day = 1
+    state.characters["perp"] = CharacterState(
+        character_id="perp",
+        name="当事人",
+        area=AreaId.HOSPITAL,
+        initial_area=AreaId.HOSPITAL,
+        identity_id="平民",
+        original_identity_id="平民",
+        paranoia_limit=2,
+    )
+    state.characters["perp"].tokens.paranoia = 2
+    state.characters["victim"] = CharacterState(
+        character_id="victim",
+        name="受害者",
+        area=AreaId.HOSPITAL,
+        initial_area=AreaId.HOSPITAL,
+        identity_id="平民",
+        original_identity_id="平民",
+    )
+    schedule = IncidentSchedule("hospital_accident", day=1, perpetrator_id="perp")
+
+    result = resolver.resolve_schedule(state, schedule)
+    assert result.occurred is True
+    assert result.has_phenomenon is False
+    assert state.characters["victim"].is_alive is True
+
+    schedule = IncidentSchedule("hospital_accident", day=1, perpetrator_id="perp")
+    state.board.areas[AreaId.HOSPITAL].tokens.intrigue = 1
+    result = resolver.resolve_schedule(state, schedule)
+    assert result.has_phenomenon is True
+    assert state.characters["victim"].is_alive is False
+    assert state.protagonist_dead is False
+
+
+def test_incident_without_legal_target_still_occurs_but_has_no_phenomenon() -> None:
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = GameState.create_minimal_test_state(days_per_loop=3)
+    apply_loaded_module(state, load_module("first_steps"))
+    state.current_day = 1
+    state.characters["perp"] = CharacterState(
+        character_id="perp",
+        name="当事人",
+        area=AreaId.CITY,
+        initial_area=AreaId.CITY,
+        identity_id="平民",
+        original_identity_id="平民",
+        paranoia_limit=2,
+    )
+    state.characters["perp"].tokens.paranoia = 2
+
+    murder = resolver.resolve_schedule(state, IncidentSchedule("murder", day=1, perpetrator_id="perp"))
+    remote = resolver.resolve_schedule(state, IncidentSchedule("long_range_murder", day=1, perpetrator_id="perp"))
+
+    assert murder.occurred is True and murder.has_phenomenon is False
+    assert remote.occurred is True and remote.has_phenomenon is False
+    assert state.incident_results_this_loop[-2].has_phenomenon is False
+    assert state.incident_results_this_loop[-1].has_phenomenon is False
+
+
+def test_unease_spread_and_spread_use_hidden_targets_in_order() -> None:
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = GameState.create_minimal_test_state(days_per_loop=3)
+    apply_loaded_module(state, load_module("first_steps"))
+    state.current_day = 1
+    for cid in ("perp", "a", "b"):
+        state.characters[cid] = CharacterState(
+            character_id=cid,
+            name=cid,
+            area=AreaId.SCHOOL,
+            initial_area=AreaId.SCHOOL,
+            identity_id="平民",
+            original_identity_id="平民",
+            paranoia_limit=2,
+        )
+    state.characters["perp"].tokens.paranoia = 2
+    state.characters["a"].tokens.goodwill = 2
+
+    unease = resolver.resolve_schedule(
+        state,
+        IncidentSchedule(
+            "unease_spread",
+            day=1,
+            perpetrator_id="perp",
+            target_character_ids=["a", "b"],
+        ),
+    )
+    assert unease.has_phenomenon is True
+    assert state.characters["a"].tokens.paranoia == 2
+    assert state.characters["b"].tokens.intrigue == 1
+
+    spread = resolver.resolve_schedule(
+        state,
+        IncidentSchedule(
+            "spread",
+            day=1,
+            perpetrator_id="perp",
+            target_character_ids=["a", "b"],
+        ),
+    )
+    assert spread.has_phenomenon is True
+    assert state.characters["a"].tokens.goodwill == 0
+    assert state.characters["b"].tokens.goodwill == 2
+
+
+def test_disappearance_and_butterfly_effect_use_hidden_area_and_token_choice() -> None:
+    bus = EventBus()
+    resolver = IncidentResolver(bus, AtomicResolver(bus, DeathResolver()))
+    state = GameState.create_minimal_test_state(days_per_loop=3)
+    apply_loaded_module(state, load_module("basic_tragedy_x"))
+    state.current_day = 1
+    state.characters["perp"] = CharacterState(
+        character_id="perp",
+        name="当事人",
+        area=AreaId.CITY,
+        initial_area=AreaId.CITY,
+        identity_id="平民",
+        original_identity_id="平民",
+        paranoia_limit=2,
+    )
+    state.characters["target"] = CharacterState(
+        character_id="target",
+        name="目标",
+        area=AreaId.CITY,
+        initial_area=AreaId.CITY,
+        identity_id="平民",
+        original_identity_id="平民",
+    )
+    state.characters["perp"].tokens.paranoia = 2
+
+    disappearance = resolver.resolve_schedule(
+        state,
+        IncidentSchedule(
+            "disappearance",
+            day=1,
+            perpetrator_id="perp",
+            target_area_ids=["school"],
+        ),
+    )
+    assert disappearance.has_phenomenon is True
+    assert state.characters["perp"].area == AreaId.SCHOOL
+    assert state.board.areas[AreaId.SCHOOL].tokens.intrigue == 1
+
+    state.characters["perp"].area = AreaId.CITY
+    state.characters["target"].area = AreaId.CITY
+    butterfly = resolver.resolve_schedule(
+        state,
+        IncidentSchedule(
+            "butterfly_effect",
+            day=1,
+            perpetrator_id="perp",
+            target_character_ids=["target"],
+            chosen_token_types=["intrigue"],
+        ),
+    )
+    assert butterfly.has_phenomenon is True
+    assert state.characters["target"].tokens.intrigue == 1

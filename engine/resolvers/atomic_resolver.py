@@ -19,10 +19,12 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from engine.models.enums import AbilityTiming, AreaId, DeathResult, EffectType, Outcome, TokenType, Trait
 from engine.event_bus import EventBus, GameEvent, GameEventType
+from engine.resolvers.ability_resolver import AbilityResolver
+from engine.rules.runtime_identities import apply_identity_change, sync_dynamic_identities
 
 if TYPE_CHECKING:
     from engine.game_state import GameState
-    from engine.models.identity import Effect
+    from engine.models.effects import Effect
     from engine.resolvers.death_resolver import DeathResolver
 
 
@@ -71,6 +73,7 @@ class AtomicResolver:
     def __init__(self, event_bus: EventBus, death_resolver: DeathResolver) -> None:
         self.event_bus = event_bus
         self.death_resolver = death_resolver
+        self.ability_resolver = AbilityResolver()
 
     def resolve(self, state: GameState, effects: list[Effect],
                 sequential: bool = False,
@@ -95,6 +98,7 @@ class AtomicResolver:
     def _resolve_simultaneous(self, state: GameState,
                               effects: list[Effect],
                               perpetrator_id: str = "") -> ResolutionResult:
+        sync_dynamic_identities(state)
         # ① 读：在快照上规划
         snapshot = state.snapshot()
         planned_mutations = []
@@ -150,6 +154,8 @@ class AtomicResolver:
         """
         if target == "self":
             return [perpetrator_id] if perpetrator_id and perpetrator_id in snapshot.characters else []
+        if target == "__no_target__":
+            return []
 
         if target in ("same_area_all", "same_area_other", "same_area_board"):
             if not perpetrator_id or perpetrator_id not in snapshot.characters:
@@ -164,11 +170,35 @@ class AtomicResolver:
             if target == "same_area_other":
                 alive_in_area = [cid for cid in alive_in_area if cid != perpetrator_id]
             return alive_in_area
+        if target.startswith("same_area_identity:"):
+            if not perpetrator_id or perpetrator_id not in snapshot.characters:
+                return []
+            identity_id = target.split(":", 1)[1]
+            perp_area = snapshot.characters[perpetrator_id].area
+            return [
+                cid for cid, ch in snapshot.characters.items()
+                if ch.area == perp_area and ch.is_alive and ch.identity_id == identity_id
+            ]
+        if target == "hospital_all":
+            return [
+                cid for cid, ch in snapshot.characters.items()
+                if ch.area == AreaId.HOSPITAL and ch.is_alive
+            ]
+        if target == "any_character":
+            return [cid for cid, ch in snapshot.characters.items() if ch.is_alive and not ch.is_removed]
+        if target == "any_board":
+            return [area_id.value for area_id in snapshot.board.areas]
         return [target]
 
     def _plan_effect(self, snapshot: GameState, effect: Effect,
                      perpetrator_id: str = "") -> list[Mutation]:
         """根据效果类型规划 mutations（不修改状态）"""
+        if effect.condition is not None and not self.ability_resolver.evaluate_condition(
+            snapshot,
+            effect.condition,
+            owner_id=perpetrator_id,
+        ):
+            return []
         mutations = []
 
         match effect.effect_type:
@@ -254,6 +284,15 @@ class AtomicResolver:
                         mutation_type="reveal_identity",
                         target_id=tid,
                         details={},
+                    ))
+
+            case EffectType.CHANGE_IDENTITY:
+                identity_id = str(effect.value or "")
+                for tid in self._resolve_target_ids(snapshot, effect.target, perpetrator_id):
+                    mutations.append(Mutation(
+                        mutation_type="identity_change",
+                        target_id=tid,
+                        details={"identity_id": identity_id},
                     ))
 
             case EffectType.MODIFY_EX_GAUGE:
@@ -342,6 +381,16 @@ class AtomicResolver:
                         {"character_id": cid, "identity_id": ch.identity_id},
                     ))
 
+            case "identity_change":
+                cid = mutation.target_id
+                identity_id = mutation.details["identity_id"]
+                apply_identity_change(
+                    state,
+                    cid,
+                    identity_id=identity_id,
+                    reason="effect",
+                )
+
             case "ex_gauge_change":
                 delta = mutation.details["delta"]
                 state.ex_gauge = max(0, state.ex_gauge + delta)
@@ -416,12 +465,58 @@ class AtomicResolver:
                     if identity_def:
                         for ability in identity_def.abilities:
                             if ability.timing == AbilityTiming.ON_DEATH:
+                                self.event_bus.emit(GameEvent(
+                                    GameEventType.ABILITY_DECLARED,
+                                    {
+                                        "source_kind": "character",
+                                        "character_id": cid,
+                                        "identity_id": ch.identity_id,
+                                        "ability_id": ability.ability_id,
+                                        "timing": AbilityTiming.ON_DEATH.value,
+                                    },
+                                ))
                                 triggers.append(Trigger(
                                     trigger_type="on_death",
                                     source_id=cid,
                                     is_terminal=False,
                                     effects=ability.effects,
                                 ))
+                for owner in state.characters.values():
+                    if owner.character_id == cid or not owner.is_alive or owner.is_removed:
+                        continue
+                    identity_def = state.identity_defs.get(owner.identity_id)
+                    if identity_def is None:
+                        continue
+                    for ability in identity_def.abilities:
+                        if ability.timing != AbilityTiming.ON_OTHER_DEATH:
+                            continue
+                        if not self.ability_resolver.evaluate_condition(
+                            state,
+                            ability.condition,
+                            owner_id=owner.character_id,
+                            other_id=cid,
+                        ):
+                            continue
+                        self.event_bus.emit(GameEvent(
+                            GameEventType.ABILITY_DECLARED,
+                            {
+                                "source_kind": "character",
+                                "character_id": owner.character_id,
+                                "identity_id": owner.identity_id,
+                                "ability_id": ability.ability_id,
+                                "timing": AbilityTiming.ON_OTHER_DEATH.value,
+                                "other_character_id": cid,
+                            },
+                        ))
+                        triggers.append(Trigger(
+                            trigger_type="on_other_death",
+                            source_id=owner.character_id,
+                            is_terminal=False,
+                            effects=ability.effects,
+                        ))
+
+        if mutation.mutation_type == "identity_change":
+            sync_dynamic_identities(state)
 
         if mutation.mutation_type == "protagonist_death":
             if state.protagonist_dead:

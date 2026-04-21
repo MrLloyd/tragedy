@@ -75,8 +75,16 @@
           "ability_type": "mandatory",
           "timing": "on_death",
           "effects": [
-            { "effect_type": "protagonist_failure", "target": "self", "value": "key_person_dead" },
-            { "effect_type": "force_loop_end", "target": "self", "value": "key_person_dead" }
+            {
+              "effect_type": "protagonist_failure",
+              "target": "self",
+              "value": "key_person_dead"
+            },
+            {
+              "effect_type": "force_loop_end",
+              "target": "self",
+              "value": "key_person_dead"
+            }
           ]
         }
       ]
@@ -85,15 +93,92 @@
       "identity_id": "killer",
       "name": "杀手",
       "module": "first_steps",
-      "traits": ["ignore_goodwill"],
-      "abilities": []
+      "traits": [
+        "ignore_goodwill"
+      ],
+      "abilities": [
+        {
+          "ability_id": "killer_turn_end_kill_key_person",
+          "name": "杀手杀死关键人物",
+          "ability_type": "optional",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "same_area_identity_token_check",
+            "params": {
+              "identity_id": "key_person",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "kill_character",
+              "target": "same_area_identity:key_person"
+            }
+          ]
+        },
+        {
+          "ability_id": "killer_turn_end_protagonist_death",
+          "name": "杀手密谋致死",
+          "ability_type": "optional",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "self",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 4
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "protagonist_death",
+              "target": "self",
+              "value": "killer_intrigue_4"
+            }
+          ]
+        }
+      ]
     },
     {
       "identity_id": "mastermind",
       "name": "主谋",
       "module": "first_steps",
-      "traits": ["ignore_goodwill"],
-      "abilities": []
+      "traits": [
+        "ignore_goodwill"
+      ],
+      "abilities": [
+        {
+          "ability_id": "mastermind_playwright_place_intrigue_character",
+          "name": "主谋放置密谋到角色",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_any",
+              "token_type": "intrigue",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "ability_id": "mastermind_playwright_place_intrigue_board",
+          "name": "主谋放置密谋到版图",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_board",
+              "token_type": "intrigue",
+              "amount": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "identity_id": "rumormonger",
@@ -101,34 +186,190 @@
       "module": "first_steps",
       "traits": [],
       "max_count": 1,
-      "abilities": []
+      "abilities": [
+        {
+          "ability_id": "rumormonger_playwright_place_paranoia",
+          "name": "传谣人放置不安",
+          "ability_type": "optional",
+          "timing": "playwright_ability",
+          "effects": [
+            {
+              "effect_type": "place_token",
+              "target": "same_area_any",
+              "token_type": "paranoia",
+              "amount": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "identity_id": "serial_killer",
       "name": "杀人狂",
       "module": "first_steps",
       "traits": [],
-      "abilities": []
+      "abilities": [
+        {
+          "ability_id": "serial_killer_turn_end_kill_lone_target",
+          "name": "杀人狂单独杀人",
+          "ability_type": "mandatory",
+          "timing": "turn_end",
+          "condition": {
+            "condition_type": "same_area_count",
+            "params": {
+              "target": "self",
+              "operator": "==",
+              "value": 2
+            }
+          },
+          "effects": [
+            {
+              "effect_type": "kill_character",
+              "target": "same_area_other"
+            }
+          ]
+        }
+      ]
     }
   ],
   "incidents": [
+    {
+      "incident_id": "unease_spread",
+      "name": "不安扩散",
+      "module": "first_steps",
+      "sequential": true,
+      "effects": [
+        {
+          "effect_type": "place_token",
+          "target": "any_character",
+          "token_type": "paranoia",
+          "amount": 2
+        },
+        {
+          "effect_type": "place_token",
+          "target": "another_character",
+          "token_type": "intrigue",
+          "amount": 1
+        }
+      ]
+    },
     {
       "incident_id": "murder",
       "name": "谋杀",
       "module": "first_steps",
       "sequential": false,
       "effects": [
-        { "effect_type": "kill_character", "target": "same_area_other" }
+        {
+          "effect_type": "kill_character",
+          "target": "same_area_other"
+        }
       ]
     },
     {
       "incident_id": "hospital_accident",
       "name": "医院事故",
       "module": "first_steps",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "hospital_all",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "hospital",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 1
+            }
+          }
+        },
+        {
+          "effect_type": "protagonist_death",
+          "target": "self",
+          "value": "hospital_intrigue_2",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "hospital",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "incident_id": "suicide",
+      "name": "自杀",
+      "module": "first_steps",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "incident_id": "spread",
+      "name": "散播",
+      "module": "first_steps",
       "sequential": true,
       "effects": [
-        { "effect_type": "kill_character", "target": "hospital_all" },
-        { "effect_type": "protagonist_death", "target": "self", "value": "hospital_intrigue_2" }
+        {
+          "effect_type": "remove_token",
+          "target": "any_character",
+          "token_type": "goodwill",
+          "amount": 2
+        },
+        {
+          "effect_type": "place_token",
+          "target": "another_character",
+          "token_type": "goodwill",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "incident_id": "disappearance",
+      "name": "失踪",
+      "module": "first_steps",
+      "sequential": true,
+      "effects": [
+        {
+          "effect_type": "move_character",
+          "target": "self",
+          "value": "any_board"
+        },
+        {
+          "effect_type": "place_token",
+          "target": "same_area_board",
+          "token_type": "intrigue",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "incident_id": "long_range_murder",
+      "name": "远距离杀人",
+      "module": "first_steps",
+      "sequential": false,
+      "effects": [
+        {
+          "effect_type": "kill_character",
+          "target": "any_character",
+          "condition": {
+            "condition_type": "token_check",
+            "params": {
+              "target": "other",
+              "token": "intrigue",
+              "operator": ">=",
+              "value": 2
+            }
+          }
+        }
       ]
     }
   ]

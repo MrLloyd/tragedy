@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from engine.models.enums import DeathResult, TokenType, Trait
+from engine.rules.runtime_identities import sync_character_identity
 
 if TYPE_CHECKING:
     from engine.game_state import GameState
@@ -63,7 +64,11 @@ class DeathResolver:
         包含基础特性 + 运行时派生特性（如不安定因子的条件特性、
         纸老虎的条件转换等）。
         """
+        sync_character_identity(state, character)
         traits = set(character.base_traits)
+        identity_def = state.identity_defs.get(character.identity_id)
+        if identity_def is not None:
+            traits.update(identity_def.traits)
 
         # 纸老虎（HSA）：2+ 不安 → 失去不死，获得必定无视友好
         # 此处预留，具体模组注册时补充

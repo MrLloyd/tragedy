@@ -1,54 +1,1109 @@
 {
+  "source": "tragedy_loop_appendix.md §附录C 角色表（与引擎枚举：AreaId、Attribute 对齐）",
+  "schema_note": "goodwill_ability_texts / goodwill_ability_goodwill_costs 下标 0–3 对应友好能力1–4；goodwill_ability_once_per_loop 长度为2，对应能力1与能力2是否每轮回限一次（附录仅定义这两项）。",
   "characters": [
     {
-      "character_id": "female_student",
-      "name": "女子学生",
-      "initial_area": "school",
-      "forbidden_areas": [],
-      "attributes": ["student", "girl"],
-      "paranoia_limit": 3,
+      "character_id": "ai",
+      "name": "AI",
+      "trait_rule": "劇本製作時，該角色不能為「平民」。判定該角色為當事人的事件是否发生時，該角色身上的所有指示物都視作不安指示物。",
+      "initial_area": "city",
+      "forbidden_areas": [
+        "hospital",
+        "school",
+        "shrine"
+      ],
+      "attributes": [
+        "creation"
+      ],
+      "paranoia_limit": 4,
       "base_traits": [],
-      "goodwill_abilities": []
+      "goodwill_ability_texts": [
+        "選擇公開信息表中記述的1個事件，處理該事件的效果。處理時，當事人默认为A.I.，且一切需要劇作家決定的內容由隊長代為決定（所選事件本身不視作已發生）。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
     },
     {
-      "character_id": "male_student",
-      "name": "男子学生",
-      "initial_area": "school",
-      "forbidden_areas": [],
-      "attributes": ["student", "boy"],
-      "paranoia_limit": 2,
-      "base_traits": [],
-      "goodwill_abilities": []
-    },
-    {
-      "character_id": "office_worker",
-      "name": "职员",
+      "character_id": "streamer",
+      "name": "UP主",
+      "trait_rule": "在每轮轮回第一次事件发生当天的回合结束阶段，往1名少年或少女身上设置1张Ex牌。在使用该角色的能力（包括友好能力）时，可以将放置有Ex牌的角色所在区域视为该角色所在区域。",
       "initial_area": "city",
       "forbidden_areas": [],
-      "attributes": ["adult", "male"],
+      "attributes": [
+        "adult",
+        "male"
+      ],
       "paranoia_limit": 2,
       "base_traits": [],
-      "goodwill_abilities": []
+      "goodwill_ability_texts": [
+        "往同一区域另外一名角色身上放置1枚友好指示物，并移除1枚不安指示物。随后，可以将那名角色身上的Ex牌转移到与那名角色位于同一区域、且非UP主的1名角色身上。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
     },
     {
-      "character_id": "shrine_maiden",
-      "name": "巫女",
-      "initial_area": "shrine",
-      "forbidden_areas": ["city"],
-      "attributes": ["student", "female"],
+      "character_id": "higher_being",
+      "name": "上位存在",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "female",
+        "adult"
+      ],
       "paranoia_limit": 2,
       "base_traits": [],
-      "goodwill_abilities": []
+      "goodwill_ability_texts": [
+        "往同区域任意1名角色身上放置1枚希望/绝望指示物（无视友好时剧作家可用）",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "temp_worker_alt",
+      "name": "临时工？",
+      "trait_rule": "该角色的身份以及事件当事人的配置与临时工的配置一致。",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "female"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "公开该角色的身份，并选择同一区域1名角色放置2枚友好指示物",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "temp_worker",
+      "name": "临时工",
+      "trait_rule": "该卡牌的身份为平民（无视其原本所配置的身份）；回合结束阶段，如果该角色总共有3枚或以上的任意指示物，该角色死亡。；回合开始阶段，如果该卡牌为死亡状态，则将临时工？在都市配置上场",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 1,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "servant",
+      "name": "从者",
+      "trait_rule": "同一区域的大人物或大小姐移动时，无视自身移动并跟随那名角色移动（如果多名角色同时移动，由主人公选择跟随哪名角色）。同一区域的大人物或大小姐死亡时，代替那名角色死亡",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "female"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "选择场上的另外1名角色，本轮轮回中，将那名角色追加至特性适用对象中。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ],
+      "initial_area_candidates": [
+        "school",
+        "city"
+      ]
+    },
+    {
+      "character_id": "hermit",
+      "name": "仙人",
+      "trait_rule": "X为剧本规定的数值。在事件判定之外需要参照该角色的不安限度时，该角色的不安限度视为0。；结算该角色担任当事人的事件时，该角色可以视为位于本来所在位置顺时针相邻的版图。",
+      "initial_area": "shrine",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "将该角色移动至任意版图或远方。随后，复活同一区域任意1具尸体，并在那个角色上放置X枚友好指示物。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ],
+      "initial_area_candidates": [
+        "shrine",
+        "hospital"
+      ]
+    },
+    {
+      "character_id": "black_cat",
+      "name": "黑猫",
+      "trait_rule": "每轮轮回开始时，往神社放置1枚密谋指示物；该角色为当事人的事件，其效果变为（没有任何现象）。",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "animal"
+      ],
+      "paranoia_limit": 0,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "idol",
+      "name": "偶像",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "移除同一区域另1名角色身上的1枚不安指示物",
+        "往同一区域另1名角色身上放置1枚友好指示物",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        4,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "soldier",
+      "name": "军人",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "往同一区域任意1名角色身上放置2枚不安指示物",
+        "本轮回中主人公不会死亡",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        true
+      ]
+    },
+    {
+      "character_id": "detective",
+      "name": "刑警",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "公开1个本轮已发生事件的当事人",
+        "往同区域任意1名角色放置1枚护卫指示物（死亡时移除护卫代替）",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        4,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        true
+      ]
     },
     {
       "character_id": "doctor",
       "name": "医生",
+      "trait_rule": "",
       "initial_area": "hospital",
       "forbidden_areas": [],
-      "attributes": ["adult", "male"],
+      "attributes": [
+        "adult",
+        "male"
+      ],
       "paranoia_limit": 2,
       "base_traits": [],
-      "goodwill_abilities": []
+      "goodwill_ability_texts": [
+        "放置/移除同一区域另外1名角色身上的1枚不安指示物。如果本角色的身份带有无视友好的特性，并且身上已经放置了2枚或以上的友好指示物，则剧作家可以在剧作家能力阶段使用该能力。",
+        "本轮回中住院患者不再拥有禁行区域，可移动至医院外",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        3,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "vip",
+      "name": "大人物",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "公开领地中另外1名角色的身份",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "ojousama",
+      "name": "大小姐",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 1,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "必须位于学校或都市才可使用，往同区域任意1名角色放置1枚友好指示物",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "female_student",
+      "name": "女子学生",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "移除同一区域另外1名角色身上的1枚不安指示物",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "sister",
+      "name": "妹妹",
+      "trait_rule": "剧本制作时，该角色的身份不可以为有无视友好特性的身份",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "girl",
+        "sister"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "同一区域的1名成人使用1个友好能力，此时无视该成人的友好指示物数量。即使该成人带有无视友好特性，也不能拒绝使用那个能力。但能力依然受到次数限制。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "media_person",
+      "name": "媒体人",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "往另外1名角色身上放置1枚不安指示物",
+        "往同区域任意1名角色或版图放置1枚密谋指示物",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        2,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "scholar",
+      "name": "学者",
+      "trait_rule": "每轮轮回开始时，往该角色身上放置友好，不安，密谋指示物中的任意1枚。",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "移除该角色身上所有的指示物。随后，如果本局游戏使用Ex槽，选择Ex槽+1或-1。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "little_girl",
+      "name": "小女孩",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [
+        "hospital",
+        "shrine",
+        "city"
+      ],
+      "attributes": [
+        "girl",
+        "student"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "本轮回中该角色不再拥有禁行区域，可以移动至学校之外",
+        "将该角色移动至相邻的版图",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        1,
+        3,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        true
+      ]
+    },
+    {
+      "character_id": "outsider",
+      "name": "局外人",
+      "trait_rule": "剧本制作时，该角色不参与剧本所选规则的身份分配，但不直接视作平民，而是为其分配当前模组中存在、并且剧本所选规则中未带有的某一身份",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "boy"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "必须在第2轮轮回或之后才可以使用。公开该角色的身份。即使带有无视友好特性，也不能拒绝行使该能力。）",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "shrine_maiden",
+      "name": "巫女",
+      "trait_rule": "",
+      "initial_area": "shrine",
+      "forbidden_areas": [
+        "city"
+      ],
+      "attributes": [
+        "female",
+        "student"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "必须位于神社才可使用，移除神社的1枚密谋指示物",
+        "公开同一区域任意1名角色的身份",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        true
+      ]
+    },
+    {
+      "character_id": "phantom",
+      "name": "幻想",
+      "trait_rule": "无法在该角色身上放置行动牌。在与该角色所在区域对应的版图上放置的行动牌，同样会作用于该角色。",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "virtual",
+        "female"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "将同一区域任意1名角色移动至任意版图",
+        "将该角色从版图上移除",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        4,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "alien",
+      "name": "异界人",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [
+        "hospital"
+      ],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "使同一区域另外1名角色死亡",
+        "复活同一区域任意1具尸体",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        4,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        true
+      ]
+    },
+    {
+      "character_id": "informant",
+      "name": "情报商",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "female",
+        "adult"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "声明1条规则X的名称。剧作家从当前剧本所选用的规则X中，公开1条主人公未声明的规则X。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "henchman",
+      "name": "手下",
+      "trait_rule": "每轮轮回开始阶段，由剧作家决定该角色的初始区域。",
+      "initial_area": "hospital",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 1,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "本轮回中该角色为当事人的事件不会发生",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ],
+      "initial_area_candidates": [
+        "hospital",
+        "shrine",
+        "city",
+        "school"
+      ]
+    },
+    {
+      "character_id": "nurse",
+      "name": "护士",
+      "trait_rule": "",
+      "initial_area": "hospital",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "female"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "移除同一区域不安达到或超出限度的另外1名角色身上的1枚不安指示物。即使带有无视友好特性也不能拒绝使用该能力。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "cult_leader",
+      "name": "教主",
+      "trait_rule": "该角色为当事人的事件，按事件文字表述结算2次",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "female"
+      ],
+      "paranoia_limit": 3,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "往不安达到或超出不安限度的角色身上放置1枚友好指示物",
+        "公开同一区域另1名不安达限度的角色身份",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        4,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        true
+      ]
+    },
+    {
+      "character_id": "teacher",
+      "name": "教师",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "female"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "放置/移除同一区域1名学生身上的1枚不安指示物",
+        "公开同一区域1名学生的身份",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        4,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "copycat",
+      "name": "模仿犯",
+      "trait_rule": "剧本制作时，该角色不参与剧本所选规则的身份分配，但不直接视作平民，而是选择剧本中的另外1名角色、将那名角色的身份额外分配给该角色（此时，无视模组规定的剧本身份上限）",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "boy",
+        "student"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "必须在第2轮轮回或之后才可以使用。公开场上与该角色身份相同的所有角色名。即使带有无视友好特性，也不能拒绝使用该能力。",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "class_rep",
+      "name": "班长",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "由队长选择1张已使用完毕的行动牌收回至手牌",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        true
+      ]
+    },
+    {
+      "character_id": "male_student",
+      "name": "男子学生",
+      "trait_rule": "",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "boy"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "移除同一区域另外1名角色身上的1枚不安指示物",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "deity",
+      "name": "神灵",
+      "trait_rule": "剧本制作时，指定该角色在第几轮轮回登场。在所指定的轮回之前，该角色不会在轮回准备时配置上场。",
+      "initial_area": "shrine",
+      "forbidden_areas": [],
+      "attributes": [
+        "male",
+        "female"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "公开1个事件的当事人",
+        "移除同一区域任意1名角色身上或版图上的1枚密谋指示物",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        false
+      ]
+    },
+    {
+      "character_id": "office_worker",
+      "name": "职员",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "adult",
+        "male"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "公开该角色的身份",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "transfer_student",
+      "name": "转校生",
+      "trait_rule": "剧本制作时，指定该角色在每轮轮回第几天登场。该角色不会在轮回准备时配置上场，在指定天数的回合开始阶段将该角色配置上场。",
+      "initial_area": "school",
+      "forbidden_areas": [],
+      "attributes": [
+        "student",
+        "girl"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "将同一区域另外1名角色身上的1枚密谋指示物替换为友好指示物",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "sacred_tree",
+      "name": "御神木",
+      "trait_rule": "主人公能力阶段可将该角色身上1枚指示物移动至同区域另1名角色（无视友好时剧作家强制使用）",
+      "initial_area": "shrine",
+      "forbidden_areas": [
+        "hospital",
+        "school",
+        "city"
+      ],
+      "attributes": [
+        "plant"
+      ],
+      "paranoia_limit": 4,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "主人公在每个回合的主人公能力阶段，可以将该角色身上的1枚指示物移动至同一区域的另外1名角色身上。如果该角色带有无视友好的特性，剧作家必须在剧作家能力阶段使用此特性（强制）",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "inpatient",
+      "name": "住院患者",
+      "trait_rule": "",
+      "initial_area": "hospital",
+      "forbidden_areas": [
+        "shrine",
+        "school",
+        "city"
+      ],
+      "attributes": [
+        "boy"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        false,
+        false
+      ]
+    },
+    {
+      "character_id": "appraiser",
+      "name": "鉴别员",
+      "trait_rule": "",
+      "initial_area": "city",
+      "forbidden_areas": [],
+      "attributes": [
+        "male",
+        "adult"
+      ],
+      "paranoia_limit": 2,
+      "base_traits": [],
+      "goodwill_ability_texts": [
+        "选择同一区域另外2名角色，将1枚任意指示物在两者之间移动",
+        "公开1具尸体的身份",
+        "",
+        ""
+      ],
+      "goodwill_ability_goodwill_costs": [
+        2,
+        5,
+        0,
+        0
+      ],
+      "goodwill_ability_once_per_loop": [
+        true,
+        true
+      ]
     }
   ]
 }

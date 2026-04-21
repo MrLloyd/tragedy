@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from engine.models.identity import Ability
+from engine.models.ability import Ability
 from engine.models.incident import IncidentSchedule
 
 
